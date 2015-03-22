@@ -2,7 +2,7 @@ package investment
 
 import java.time.YearMonth
 
-class cashUSD extends Instrument {
+class CashUSD extends Instrument {
   override def toString = "USD"
 
   /** The price in rubles of purchasing one unit of the given instrument in the given month. */

@@ -6,16 +6,18 @@ import java.time.YearMonth
 import scala.collection.mutable
 
 case class Stock(ticker: String,
-                 highs: Map[YearMonth, Double],
-                 lows: Map[YearMonth, Double],
+                 open: Map[YearMonth, Double],
+                 high: Map[YearMonth, Double],
+                 low: Map[YearMonth, Double],
+                 close: Map[YearMonth, Double],
                  dividends: Map[YearMonth, Double],
                  splits: Map[YearMonth, Double] = Map()) extends Instrument {
 
   override def toString = ticker
 
-  override lazy val startDate = highs.keys.min
+  override lazy val startDate = high.keys.min
 
-  override def price(ym: YearMonth) = (highs(ym) + lows(ym)) / 2.0
+  override def price(ym: YearMonth) = (high(ym) + low(ym)) / 2.0
 
   override def yieldPercentage(ym: YearMonth): Double = dividends.getOrElse(ym, 0.0) / price(ym)
 }
@@ -25,12 +27,21 @@ object Stock {
 
   def apply(ticker: String) = {
     val quotesFile = new CSVFile("data/" + ticker + ".csv")
-    val highs = mutable.HashMap[YearMonth, Double]()
-    val lows = mutable.HashMap[YearMonth, Double]()
+    val open = mutable.HashMap[YearMonth, Double]()
+    val high = mutable.HashMap[YearMonth, Double]()
+    val low = mutable.HashMap[YearMonth, Double]()
+    val close = mutable.HashMap[YearMonth, Double]()
     for (values <- quotesFile) {
       val ym = YearMonth.parse(values(2), dateFormat)
-      highs(ym) = values(5).toDouble
-      lows(ym) = values(6).toDouble
+      open(ym) = values(4).toDouble
+      high(ym) = values(5).toDouble
+      low(ym) = values(6).toDouble
+      close(ym) = values(7).toDouble
+      assert(high(ym) >= low(ym))
+      assert(high(ym) >= open(ym))
+      assert(high(ym) >= close(ym))
+      assert(low(ym) <= open(ym))
+      assert(low(ym) <= close(ym))
     }
     val dividendsFile = new CSVFile("data/" + ticker + "-dividends.csv")
     val dividends = mutable.HashMap[YearMonth, Double]()
@@ -47,7 +58,6 @@ object Stock {
     } catch {
       case fnf: FileNotFoundException => ()
     }
-    new Stock(ticker, Map() ++ highs, Map() ++ lows, Map() ++ dividends, Map() ++ splits)
+    new Stock(ticker, Map() ++ open, Map() ++ high, Map() ++ low, Map() ++ close, Map() ++ dividends, Map() ++ splits)
   }
 }
-

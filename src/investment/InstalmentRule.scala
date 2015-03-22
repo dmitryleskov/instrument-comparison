@@ -2,8 +2,6 @@ package investment
 
 import java.time.{Year, YearMonth}
 
-import org.joda.money.Money
-
 abstract class InstalmentRule(val start: YearMonth) {
   /** Returns amount invested in rubles during n-th month, numbered from 1 */
   def instalment(n: Int): Double
@@ -20,14 +18,12 @@ class FixedUSDAmount(override val start: YearMonth, val usdAmount: Double) exten
 
 /** Increase the invested amount by the given percentage each year */
 class AnnualIncrease (override val start: YearMonth, val initialAmount: Double, annualIncrease: Double) extends InstalmentRule(start) {
-  /** Returns amount invested during n-th month, numbered from 1 */
   override def instalment(n: Int): Double =
     if (n <= 12) initialAmount
     else annualIncrease * instalment(n - 12)
 }
 
 class InflationAdjusted(override val start: YearMonth, val initialAmount: Double) extends InstalmentRule(start) {
-  /** Returns amount invested in rubles during n-th month, numbered from 1 */
   override def instalment(n: Int): Double =
     if (n <= 12) initialAmount
     else Inflation.annual(Year.from(start.plusMonths(n - 12 - 1))) * instalment(n - 12)

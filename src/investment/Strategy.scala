@@ -2,60 +2,84 @@ package investment
 
 import java.time.YearMonth
 
-
-abstract class Strategy {
+abstract class Strategy (allocation: AssetAllocation) {
   def portfolioValue(ym: YearMonth, portfolio: Portfolio): Double = {
-    (for(Position(instrument, share, amount) <- portfolio) yield instrument.price(ym) * amount).sum
+    (for(Position(instrument, amount) <- portfolio) yield instrument.price(ym) * amount).sum
   }
 
   /** Given a year-month, a portfolio and an amount of money in rubles, invest that amount */
-  def invest(ym: YearMonth, portfolio: Portfolio, amount: Double): Portfolio
-
+  def invest(month: Int, ym: YearMonth, portfolio: Portfolio, instalment: Double): Portfolio
 }
-
-class AllToFirst extends Strategy {
-  /** Given a year-month, a portfolio and an amount of money in rubles, invest that amount */
-  override def invest(ym: YearMonth, portfolio: Portfolio, cash: Double): Portfolio = {
-    val Position(instrument, share, amount) = portfolio.head
-    Position(instrument, share, amount + cash / instrument.price(ym)) :: portfolio.tail
+/** The entire instalment always goes to the first instument (only useful for testing). */
+class AllToFirst(allocation: AssetAllocation) extends Strategy(allocation) {
+  override def invest(month: Int, ym: YearMonth, portfolio: Portfolio, instalment: Double): Portfolio = {
+    val Position(instrument, amount) = portfolio.head
+    Position(instrument, amount + instalment / instrument.price(ym)) :: portfolio.tail
   }
 }
 
-class EqualAmounts extends Strategy {
-  override def invest(ym: YearMonth, portfolio: Portfolio, cash: Double): Portfolio = {
-    val cashPerInstrument = cash / portfolio.length
-    for (Position(instrument, share, amount) <- portfolio) yield
-      Position(instrument, share, amount + cashPerInstrument / instrument.price(ym))
+/** Simply split instalments according to allocation factors */
+class Split(allocation: AssetAllocation) extends Strategy(allocation) {
+  override def invest(month: Int, ym: YearMonth, portfolio: Portfolio, instalment: Double): Portfolio = {
+    val alloc = allocation.allocation(month)
+    val denom = alloc.foldLeft(0.0)(_ + _._2)
+    for (Position(instrument, amount) <- portfolio) yield
+      Position(instrument, amount + (instalment * alloc(instrument)/denom) / instrument.price(ym))
   }
 }
 
-class RebalanceMonthly extends Strategy {
-  /** Given a year-month, a portfolio and an amount of money in rubles, invest that amount */
-  override def invest(ym: YearMonth, portfolio: Portfolio, amount: Double): Portfolio = {
-    val average = (portfolioValue(ym, portfolio) + amount) / portfolio.length
-    val newPortfolio = for (Position(instrument, share, amount) <- portfolio)
-                       yield Position(instrument, share, average / instrument.price(ym))
+/** Calculate current portfolio value, add instalment and redistribute */
+class RebalanceMonthly(allocation: AssetAllocation) extends Strategy(allocation) {
+  override def invest(month: Int, ym: YearMonth, portfolio: Portfolio, instalment: Double): Portfolio = {
+    val totalValue = portfolioValue(ym, portfolio) + instalment
+    val alloc = allocation.allocation(month)
+    val denom = alloc.foldLeft(0.0)(_ + _._2)
+    val newPortfolio = for (Position(instrument, amount) <- portfolio)
+                       yield Position(instrument, (totalValue * alloc(instrument)/denom) / instrument.price(ym))
     //println(ym + " " + portfolioValue(ym, portfolio) + " " + amount + " " + portfolioValue(ym, newPortfolio))
-    assert(portfolioValue(ym, portfolio) + amount - portfolioValue(ym, newPortfolio) < 1e-5)
+    assert(portfolioValue(ym, portfolio) + instalment - portfolioValue(ym, newPortfolio) < 1e-5)
     newPortfolio
   }
 }
 
-class BalanceGradually extends Strategy {
-  /** Given a year-month, a portfolio and an amount of money in rubles, invest that amount */
-  override def invest(ym: YearMonth, portfolio: Portfolio, amount: Double): Portfolio = {
-    val values = for(Position(instrument, share, amount) <- portfolio) yield (instrument, instrument.price(ym) * amount)
-    val maxValue = (values map (_._2)).max
-    val differences = for ((instrument, value) <- values) yield (instrument, maxValue - value)
-    val diffTotal = (differences map (_._2)).sum
-    val shares = (for((instrument, diff) <- differences) yield
-      if (diffTotal < 1e-5)
-        (instrument, amount / portfolio.length)
-      else
-        (instrument, amount * diff / diffTotal)).toMap
-    val newPortfolio = for(Position(instrument, share, amount) <- portfolio) yield Position(instrument, share, amount + shares(instrument)/instrument.price(ym))
-    //println(ym + " " + portfolioValue(ym, portfolio) + " " + amount + " " + portfolioValue(ym, newPortfolio))
-    assert(portfolioValue(ym, portfolio) + amount - portfolioValue(ym, newPortfolio) < 1e-5)
-    newPortfolio
+/**
+ * Never sell anything, only distribute instalments so as to make the allocation closer to desired.
+ */
+class BalanceGradually(allocation: AssetAllocation) extends Strategy(allocation) {
+  override def invest(month: Int, ym: YearMonth, portfolio: Portfolio, instalment: Double): Portfolio = {
+    if (month == 1 || portfolio.length == 1) new Split(allocation).invest(month, ym, portfolio, instalment)
+    else {
+      val values = (for (position <- portfolio) yield (position.instrument, position.value(ym))).toMap
+      val currentAllocation = AssetAllocation.calculate(values)
+      val desiredAllocation = allocation.allocation(month)
+      case class Deviation(instrument: Instrument, delta: Double) extends Ordered[Deviation] {
+        override def compare(that: Deviation): Int = this.delta.compare(that.delta)
+      }
+      val shareDeviations = for ((instrument, share) <- currentAllocation)
+                            yield Deviation(instrument, share - desiredAllocation(instrument))
+      val mostOverweight = shareDeviations.max.instrument
+      val deficit = values(mostOverweight) / desiredAllocation(mostOverweight) - portfolioValue(ym, portfolio)
+      // deficit is how much must be invested in the rest of the portfolio in order to match desiredAllocation
+
+      val instalmentAllocation =
+        new FixedAllocation((shareDeviations map (d => (d.instrument, Math.sqrt(shareDeviations.max.delta - d.delta)))).toMap)
+
+      val (balancer, extra) =
+        if (deficit < instalment)
+          (deficit, Some(instalment - deficit))
+        else
+          (instalment, None)
+
+      val interimPortfolio = new Split(instalmentAllocation).invest(month, ym, portfolio, balancer)
+      assert(portfolioValue(ym, portfolio) + balancer - portfolioValue(ym, interimPortfolio) < 1e-5)
+
+      val newPortfolio =
+        extra match {
+          case Some(amount) => new Split(allocation).invest(month, ym, interimPortfolio, amount)
+          case None => interimPortfolio
+        }
+      assert(portfolioValue(ym, portfolio) + instalment - portfolioValue(ym, newPortfolio) < 1e-5)
+      newPortfolio
+    }
   }
 }
