@@ -2,11 +2,14 @@ package investment
 
 import java.time.YearMonth
 
+import scala.collection.mutable.ArrayBuffer
+
 class Simulator(val allocation: AssetAllocation,
                 val rule: InstalmentRule,
                 val strategy: Strategy) {
   def simulate(start: YearMonth, length: Int) = {
     var portfolio: Portfolio = for (instrument <- allocation.allocation(1).keys.toList) yield Position(instrument, 0)
+    val snapshots = ArrayBuffer[(Int, Double, Portfolio)]()
     var totalInvestment = 0.0
     var totalYield = 0.0
     var month = 1
@@ -30,8 +33,9 @@ class Simulator(val allocation: AssetAllocation,
         instrument.yieldPercentage(cur) * instrument.price(cur) * amount
       portfolio = strategy.invest(month, cur, portfolio, instalment + extra.sum)
       totalInvestment += instalment
+      snapshots += ((month, instalment, portfolio))
       month = month + 1
     }
-    (totalInvestment, portfolio)
+    snapshots.toList
   }
 }

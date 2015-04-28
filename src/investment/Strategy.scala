@@ -6,10 +6,10 @@ abstract class Strategy (allocation: AssetAllocation) {
   def portfolioValue(ym: YearMonth, portfolio: Portfolio): Double = {
     (for(Position(instrument, amount) <- portfolio) yield instrument.price(ym) * amount).sum
   }
-
   /** Given a year-month, a portfolio and an amount of money in rubles, invest that amount */
   def invest(month: Int, ym: YearMonth, portfolio: Portfolio, instalment: Double): Portfolio
 }
+
 /** The entire instalment always goes to the first instument (only useful for testing). */
 class AllToFirst(allocation: AssetAllocation) extends Strategy(allocation) {
   override def invest(month: Int, ym: YearMonth, portfolio: Portfolio, instalment: Double): Portfolio = {
