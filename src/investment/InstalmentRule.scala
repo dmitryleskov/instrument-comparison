@@ -23,8 +23,8 @@ class AnnualIncrease (override val start: YearMonth, val initialAmount: Double, 
     else annualIncrease * instalment(n - 12)
 }
 
-class InflationAdjusted(override val start: YearMonth, val initialAmount: Double) extends InstalmentRule(start) {
-  override def instalment(n: Int): Double =
-    if (n <= 12) initialAmount
-    else Inflation.annual(Year.from(start.plusMonths(n - 12 - 1))) * instalment(n - 12)
-}
+//class InflationAdjusted(override val start: YearMonth, val initialAmount: Double) extends InstalmentRule(start) {
+//  override def instalment(n: Int): Double =
+//    if (n <= 12) initialAmount
+//    else Inflation.annual(Year.from(start.plusMonths(n - 12 - 1))) * instalment(n - 12)
+//}

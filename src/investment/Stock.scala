@@ -16,6 +16,7 @@ case class Stock(ticker: String,
   override def toString = ticker
 
   override lazy val startDate = high.keys.min
+  override lazy val endDate = high.keys.max
 
   override def price(ym: YearMonth) = (high(ym) + low(ym)) / 2.0
 

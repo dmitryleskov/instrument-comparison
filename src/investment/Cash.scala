@@ -2,8 +2,11 @@ package investment
 
 import java.time.YearMonth
 
-class CashUSD extends Instrument {
+case object CashUSD extends Instrument {
   override def toString = "USD"
+
+  override val startDate = USDRUB.startDate
+  override val endDate = USDRUB.endDate
 
   /** The price in rubles of purchasing one unit of the given instrument in the given month. */
   override def price(ym: YearMonth): Double = USDRUB.mid(ym)

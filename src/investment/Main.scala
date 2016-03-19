@@ -14,8 +14,8 @@ object Main extends App {
   val sberp = Stock("SBERP")
   val sngsp = Stock("SNGSP")
   val vtbr = Stock("VTBR")
-  val usd = new CashUSD
-  val deposit = new Deposit(0.10)
+  val usd = CashUSD
+  val deposit = DepositRUB
   val depositUSD = new DepositUSD(0.03)
 
   val allocationDescriptors: List[List[(Instrument, Double)]] =
