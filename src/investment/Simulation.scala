@@ -1,15 +1,11 @@
 package investment
 
-import java.time.YearMonth
-import java.time.temporal.ChronoUnit
-
-import investment.SimulationModel.StrategyID
-import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}
+import investment.SimulationModel.{InstalmentCurrencyID, InstalmentRuleID, StrategyID}
 
 import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
-import scalafx.beans.property.ObjectProperty
+import scalafx.beans.binding.Bindings
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
 import scalafx.geometry.Insets
@@ -18,69 +14,18 @@ import scalafx.scene.control._
 import scalafx.scene.layout.{BorderPane, HBox, StackPane, VBox}
 import scalafx.scene.{Node, Scene}
 
-object SimulationModel {
-  val portfolioModel = new PortfolioModel
-  val results = new ObservableBuffer[(Int, Double, investment.Portfolio)]()
-  val portfolioValues = new ObservableBuffer[(Int, Double)]
-
-  sealed abstract class StrategyID
-  object StrategyID {
-    case object Split extends StrategyID {override def toString() = "Simple Split"}
-    case object BalanceGradually extends StrategyID {override def toString() = "Balance Gradually"}
-    case object RebalanceMonthly extends StrategyID {override def toString() = "Rebalance Monthly"}
-    val values = Seq(Split, BalanceGradually, RebalanceMonthly)
-  }
-
-  val strategyId = ObjectProperty[StrategyID](this, "strategy")
-  strategyId.onChange(updateResults)
-
-  def updateResults() = {
-    val portfolio = portfolioModel.get
-    if (portfolio.isEmpty || strategyId.value == null) {
-      results.clear()
-      portfolioValues.clear()
-    } else {
-      val start = (portfolio map (_._1.startDate)).max
-      val end = (portfolio map (_._1.endDate)).min
-      val allocation = new FixedAllocation(portfolio.toMap)
-      val strategy = strategyId.value match {
-        case Split => new Split(allocation)
-        case BalanceGradually => new BalanceGradually(allocation)
-        case RebalanceMonthly => new RebalanceMonthly(allocation)
-      }
-
-      val instalmentRule =
-        new FixedAmount(start, 1000.0)
-//        new FixedUSDAmount(start, 10.0)
-//        new InflationAdjusted(start, 1000.0)
-
-      val sim = new Simulator(
-        allocation,
-        instalmentRule,
-        strategy)
-
-      results.setAll(sim.simulate(start, start.until(end, ChronoUnit.MONTHS).toInt): _*)
-      def portfolioValue(ym: YearMonth, portfolio: Portfolio): Double = {
-        (for(Position(instrument, amount) <- portfolio) yield instrument.price(ym) * amount).sum
-      }
-      portfolioValues.setAll(results map (x => (x._1, portfolioValue(start.plusMonths(x._1 - 1), x._3))))
-    }
-    ()
-  }
-  portfolioModel.onChange(c => updateResults)
-}
-
 object Simulation extends JFXApp {
 
   def updateChart: Unit = {
     val investmentRT =
       SimulationModel.results
-        .map(x => (x._1, x._2))
+        .map(x => (x.serial, x.instalment))
         .scanLeft((0, 0.0))({case ((_, prev), (month, amount)) => (month,prev + amount)})
         .tail
 
-//    val data0 = ObservableBuffer(Inflation.rates map { case (x, y) => XYChart.Data[Number, Number](x, y) })
-//    val series0 = XYChart.Series[Number, Number]("Investment", data0)
+    println(SimulationModel.inflation.length)
+    val data0 = ObservableBuffer(SimulationModel.inflation map { case Snapshot(serial, _, _, _, value) => XYChart.Data[Number, Number](serial, value) })
+    val series0 = XYChart.Series[Number, Number]("Inflation", data0)
 
     val data1 = ObservableBuffer(investmentRT map { case (x, y) => XYChart.Data[Number, Number](x, y) })
     val series1 = XYChart.Series[Number, Number]("Investment", data1)
@@ -89,15 +34,19 @@ object Simulation extends JFXApp {
     val series2 = XYChart.Series[Number, Number]("Portfolio", data2)
 
     lineChart.getData.clear()
+    lineChart.getData.add(series0)
     lineChart.getData.add(series1)
     lineChart.getData.add(series2)
   }
+
+  //println(SessionManager.t)
 
   val portfolioEditor = PortfolioEditor.init(SimulationModel.portfolioModel, () => {
     rootNode.children = chart
   })
 
   SimulationModel.portfolioValues.onChange(updateChart)
+  SimulationModel.inflation.onChange(updateChart)
 
   def addVBox: Node =
     new VBox {
@@ -119,14 +68,26 @@ object Simulation extends JFXApp {
               "1000", filter) {
 
               }
+              //SimulationModel.initialInstalment <== text.value.toInt
+              val initialInstalmentBinding = Bindings.createIntegerBinding (
+                () => {println("BINDING"); text.value.toInt},
+                text
+              )
+              focused.onChange({(_, _, newVal) => if (!newVal)
+                SimulationModel.initialInstalment.value = initialInstalmentBinding.intValue
+              })
+
+
             },
-            new ChoiceBox[String] {
-              items = ObservableBuffer(Seq("RUB", "USD"))
+            new ChoiceBox[InstalmentCurrencyID] {
+              items = ObservableBuffer(InstalmentCurrencyID.values)
+              value <==> SimulationModel.instalmentCurrencyId
             }
           )
         },
-        new ChoiceBox[String] {
-          items = ObservableBuffer(Seq("Constant", "Fixed % increase", "Inflation adjusted"))
+        new ChoiceBox[InstalmentRuleID] {
+          items = ObservableBuffer(InstalmentRuleID.values)
+          value <==> SimulationModel.instalmentRuleId
         },
         new ChoiceBox[StrategyID] {
           items = ObservableBuffer(StrategyID.values)
@@ -158,6 +119,11 @@ object Simulation extends JFXApp {
     scene = new Scene(800, 600) {
       root = rootNode
     }
+  }
+
+  override def stopApp = {
+    val x = Storage.toXML(SimulationModel.portfolioModel.getWeights)
+    xml.XML.save(".portfolio", x.head)
   }
 }
 

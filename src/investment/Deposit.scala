@@ -1,6 +1,7 @@
 package investment
 
 import java.time.YearMonth
+import java.util.Locale
 
 import scala.collection.mutable
 
@@ -17,14 +18,13 @@ case object DepositRUB extends Instrument {
   override lazy val endDate = interest.keys.max
 
   private val interest: Map[YearMonth, Double] = {
-    val dateFormat = java.time.format.DateTimeFormatter.ofPattern("MMM-yy")
+    val dateFormat = java.time.format.DateTimeFormatter.ofPattern("MMM-yy", Locale.US)
     val csv = new CSVFile("data/Deposit-RUB.csv")
     val data = mutable.HashMap[YearMonth, Double]()
     for (values <- csv) {
       val yearmonth = YearMonth.parse(values(0), dateFormat)
       val rate = values(1).toDouble / 100
       data(yearmonth) = rate
-      println(yearmonth, rate)
     }
     Map() ++ data
   }
@@ -49,5 +49,4 @@ case class DepositUSD(annualInterest: Double) extends Instrument {
     println(ym, USDRUB.mid(ym), USDRUB.mid(ym.minusMonths(1)))
     yp
   }
-
 }

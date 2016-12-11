@@ -4,12 +4,29 @@ import java.time.YearMonth
 
 import scala.collection.mutable.ArrayBuffer
 
+case class Snapshot(serial: Int,
+                    ym: YearMonth,
+                    instalment: Double,
+                    portfolio: Portfolio,
+                    value: Double)
+
 class Simulator(val allocation: AssetAllocation,
                 val rule: InstalmentRule,
                 val strategy: Strategy) {
+
+
+  /**
+    * Run simulation defined by class parameters for `length` months
+    * starting from `start`
+    *
+    * @param start
+    * @param length
+    * @return A `Seq` of `(Int, Double, Portfolio)` representing month number,
+    *         instalment added and resulting asset allocation
+    */
   def simulate(start: YearMonth, length: Int) = {
     var portfolio: Portfolio = for (instrument <- allocation.allocation(1).keys.toList) yield Position(instrument, 0)
-    val snapshots = ArrayBuffer[(Int, Double, Portfolio)]()
+    val snapshots = ArrayBuffer[Snapshot]()
     var totalInvestment = 0.0
     var totalYield = 0.0
     var month = 1
@@ -33,9 +50,13 @@ class Simulator(val allocation: AssetAllocation,
         instrument.yieldPercentage(cur) * instrument.price(cur) * amount
       portfolio = strategy.invest(month, cur, portfolio, instalment + extra.sum)
       totalInvestment += instalment
-      snapshots += ((month, instalment, portfolio))
+      def portfolioValue(ym: YearMonth, portfolio: Portfolio): Double = {
+        (for(Position(instrument, amount) <- portfolio) yield instrument.price(ym) * amount).sum
+      }
+      snapshots += Snapshot(month, cur, instalment, portfolio, portfolioValue(cur, portfolio))
       month = month + 1
     }
+    println(snapshots.toList)
     snapshots.toList
   }
 }

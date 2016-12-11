@@ -1,0 +1,5 @@
+package investment
+
+object SessionManager {
+
+}

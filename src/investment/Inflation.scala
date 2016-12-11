@@ -1,6 +1,7 @@
 package investment
 
-import java.time.{Year, YearMonth}
+import java.time.YearMonth
+import java.util.Locale
 import scala.collection.mutable
 
 case object Inflation extends Instrument {
@@ -16,7 +17,7 @@ case object Inflation extends Instrument {
   override lazy val endDate = rates.keys.max
 
   val rates: Map[YearMonth, Double] = {
-    val dateFormat = java.time.format.DateTimeFormatter.ofPattern("MMM-yy")
+    val dateFormat = java.time.format.DateTimeFormatter.ofPattern("MMM-yyyy", Locale.US)
     val csv = new CSVFile("data/Inflation.csv")
     val data = mutable.HashMap[YearMonth, Double]()
     for (values <- csv) {

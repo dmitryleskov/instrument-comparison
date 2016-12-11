@@ -47,9 +47,9 @@ object Main extends App {
       //      new RebalanceMonthly(allocation))
       val end = start.plusMonths(d + span - 1)
       val snapshots = sim.simulate(start.plusMonths(d), span)
-      val totalInvestment = (snapshots map (_._2)).sum
-      println(snapshots.last._3)
-      val value = (snapshots.last._3 map { case Position(instrument, amount) => amount * instrument.price(end)}).sum
+      val totalInvestment = (snapshots map (_.instalment)).sum
+      println(snapshots.last.portfolio)
+      val value = (snapshots.last.portfolio map { case Position(instrument, amount) => amount * instrument.price(end)}).sum
       println("Value = %.2fр.".format(value) +
         " ($%.2f)".format(value / usd.price(end)) +
         " %.2fр. invested".format(totalInvestment) +
