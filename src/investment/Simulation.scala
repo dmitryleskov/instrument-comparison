@@ -1,6 +1,9 @@
 package investment
 
+import java.io.FileNotFoundException
+
 import investment.SimulationModel.{InstalmentCurrencyID, InstalmentRuleID, StrategyID}
+import org.xml.sax.SAXParseException
 
 import scalafx.Includes._
 import scalafx.application.JFXApp
@@ -41,12 +44,31 @@ object Simulation extends JFXApp {
 
   //println(SessionManager.t)
 
-  val portfolioEditor = PortfolioEditor.init(SimulationModel.portfolioModel, () => {
-    rootNode.children = chart
-  })
+  val allocation = try {
+    val x = xml.XML.load(".portfolio")
+    Storage.fromXML[List[(Instrument, Int)]](x) match {
+      case Some(portfolio) => println("Settings file found, portfolio loaded: " + portfolio)
+        SimulationModel.allocationProperty.value = new FixedAllocation((for ((i,w) <- portfolio) yield (i, w.toDouble)).toMap)
+        portfolio
+      case None => println("Settings file found, but portfolio not loaded"); List.empty
+    }
+  } catch {
+    case ex: FileNotFoundException =>
+      println("Settings file not found")
+      List.empty
+    case ex: SAXParseException =>
+      println("Settings file contents is not well-formed XML: " + ex.getMessage)
+      List.empty
+  }
 
   SimulationModel.portfolioValues.onChange(updateChart)
   SimulationModel.inflation.onChange(updateChart)
+
+  val portfolioModel = new PortfolioModel(allocation)
+  val portfolioEditor = PortfolioEditor.init(portfolioModel, () => {
+    SimulationModel.allocationProperty.value = new FixedAllocation(portfolioModel.get.toMap)
+    rootNode.children = chart
+  })
 
   def addVBox: Node =
     new VBox {
@@ -122,7 +144,7 @@ object Simulation extends JFXApp {
   }
 
   override def stopApp = {
-    val x = Storage.toXML(SimulationModel.portfolioModel.getWeights)
+    val x = Storage.toXML(portfolioModel.getWeights)
     xml.XML.save(".portfolio", x.head)
   }
 }

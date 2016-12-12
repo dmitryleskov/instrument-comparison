@@ -9,7 +9,6 @@ import scalafx.beans.property.{ObjectProperty, IntegerProperty}
 import scalafx.collections.ObservableBuffer
 
 object SimulationModel {
-  val portfolioModel = new PortfolioModel
   val results = new ObservableBuffer[Snapshot]()
   val inflation = new ObservableBuffer[(Snapshot)]()
   val portfolioValues = new ObservableBuffer[(Int, Double)]
@@ -40,6 +39,9 @@ object SimulationModel {
   val initialInstalment = IntegerProperty(0) // FIXME
   initialInstalment.onChange(updateResults)
 
+  val allocationProperty = ObjectProperty[AssetAllocation](this, "allocation")
+  allocationProperty.onChange(updateResults)
+
   val strategyId = ObjectProperty[StrategyID](this, "strategy")
   strategyId.onChange(updateResults)
 
@@ -51,17 +53,17 @@ object SimulationModel {
 
   def updateResults() = {
     println("Updating results")
-    val portfolio = portfolioModel.get
+    val allocation = allocationProperty.value
+    println(allocation)
 
-    if (portfolio.isEmpty || strategyId.value == null) {
+    if (allocation == null || strategyId.value == null) {
       results.clear()
       portfolioValues.clear()
     } else {
-      val start = (((Inflation, 1.0) :: portfolio) map (_._1.startDate)).max
-      val end = (((Inflation, 1.0) :: portfolio) map (_._1.endDate)).min
+      val start = (((Inflation, 1.0) :: allocation.allocation(1).toList) map (_._1.startDate)).max
+      val end = (((Inflation, 1.0) :: allocation.allocation(1).toList) map (_._1.endDate)).min
       println(Inflation.endDate)
       println(start, end)
-      val allocation = new FixedAllocation(portfolio.toMap)
       val strategy = strategyId.value match {
         case Split => new Split(allocation)
         case BalanceGradually => new BalanceGradually(allocation)
@@ -95,7 +97,5 @@ object SimulationModel {
       inflation.setAll(inflationSim.simulate(start, start.until(end, ChronoUnit.MONTHS).toInt + 1): _*)
       println(inflation)
     }
-    ()
   }
-  portfolioModel.onChange(c => updateResults)
 }

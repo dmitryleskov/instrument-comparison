@@ -21,9 +21,9 @@ object PortfolioModel {
   case class ChangeWeight(pos: Int, newWeight: Int) extends Change
 }
 
-class PortfolioModel {
+class PortfolioModel(init: List[(Instrument, Int)]) {
   import PortfolioModel._
-  private val portfolio = mutable.Buffer[(Instrument, Int)]()
+  private val portfolio = init.to[mutable.Buffer]
   var listeners: List[Change => Unit] = Nil
   def onChange(listener: Change => Unit) = listeners ::= listener
   private def notify(change: Change) = for (l <- listeners) l(change)
@@ -34,6 +34,7 @@ class PortfolioModel {
   }
 
   def get = (for (p <- portfolio) yield (p._1, p._2.toDouble)).toList
+  def getWeights = portfolio.toList
   def getInstruments = (for (p <- portfolio) yield p._1).toList
 
   def length = portfolio.length
@@ -77,6 +78,7 @@ class PortfolioModel {
         notify(Remove(index))
       case None => ()
     }
+
 }
 
 object PortfolioEditor {
@@ -87,6 +89,12 @@ object PortfolioEditor {
     val chartData = ObservableBuffer[PieChart.Data]()
 
     class PortfolioItemSelector {
+      def this (_instrument: Instrument, _weight: Int) = {
+        this
+        println("Adding selector: " + _instrument + " " + _weight)
+        instrument.value = _instrument
+        weight.valueFactory.value.value = _weight
+      }
       val instrument = new ChoiceBox[Instrument] {
         items = ObservableBuffer(Instruments.all)
         margin = Insets(5, 5, 5, 0)
@@ -97,7 +105,7 @@ object PortfolioEditor {
         // and even loses focus if the mouse ends up being outside it
         width.onChange({if (width.value > minWidth.value) minWidth = width.value})
 
-        def refreshMyItems = {
+        def refreshMyItems() = {
           val selected = model.getInstruments.toSet
           val available = Instruments.all.filter(x => !(selected contains x))
           println(available)
@@ -122,12 +130,12 @@ object PortfolioEditor {
           } else {
             model.changeInstrument(oldValue, newValue)
           }
-          refreshMyItems
+          refreshMyItems()
         })
         focused.onChange({
           if (focused.value) {
             println("Focus!")
-            refreshMyItems
+            refreshMyItems()
           }
         })
       }
@@ -151,7 +159,7 @@ object PortfolioEditor {
       }
     }
 
-    val selectors = ObservableBuffer[PortfolioItemSelector]()
+    val selectors = mutable.Buffer[PortfolioItemSelector]()
 
     def addEmptySelector(grid: GridPane): Unit = {
       println(model.length)
@@ -159,6 +167,14 @@ object PortfolioEditor {
       grid.add(selector.instrument, 0, model.length + 1)
       grid.add(selector.weight, 1, model.length + 1)
       grid.add(selector.delete, 1, model.length + 1)
+      selectors += selector
+    }
+
+    def addSelector(grid: GridPane, pos: Int, _instrument: Instrument, _weight: Int): Unit = {
+      val selector = new PortfolioItemSelector(_instrument, _weight)
+      grid.add(selector.instrument, 0, pos)
+      grid.add(selector.weight, 1, pos)
+      grid.add(selector.delete, 1, pos)
       selectors += selector
     }
 
@@ -203,6 +219,11 @@ object PortfolioEditor {
       }
     })
 
+    val grid = new GridPane() {
+      grid =>
+      padding = Insets(15, 0, 15, 0)
+      style = "-fx-border-width: 1 0; -fx-border-color: grey"
+    }
     val border = new BorderPane {
       left = new VBox {
         val doneButton = new Button("Done") {
@@ -224,12 +245,6 @@ object PortfolioEditor {
         }
         deleteMode.onChange({deleteButton.visible = !deleteMode.value})
 
-        val grid = new GridPane() {
-          grid =>
-          padding = Insets(15, 0, 15, 0)
-          style = "-fx-border-width: 1 0; -fx-border-color: grey"
-          addEmptySelector(grid)
-        }
         model.onChange(change => {
           println("model.onChange(controller)")
           change match {
@@ -252,5 +267,14 @@ object PortfolioEditor {
       }
       center = new PieChart(chartData)
     }
+
+    model.getWeights.zipWithIndex.foreach {
+      case ((i, w), p) =>
+        chartData.insert(p, new PieChart.Data(i.toString, w))
+        addSelector(grid, p, i, w)
+    }
+    addEmptySelector(grid)
+
     border
   }
+}
