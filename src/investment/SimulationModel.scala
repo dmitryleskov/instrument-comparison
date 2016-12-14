@@ -56,7 +56,7 @@ object SimulationModel {
     val allocation = allocationProperty.value
     println(allocation)
 
-    if (allocation == null || strategyId.value == null) {
+    if (allocation == null || strategyId.value == null || instalmentRuleId.value == null) {
       results.clear()
       portfolioValues.clear()
     } else {

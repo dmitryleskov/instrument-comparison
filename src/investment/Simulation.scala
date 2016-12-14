@@ -44,31 +44,55 @@ object Simulation extends JFXApp {
 
   //println(SessionManager.t)
 
-  val allocation = try {
-    val x = xml.XML.load(".portfolio")
-    Storage.fromXML[List[(Instrument, Int)]](x) match {
-      case Some(portfolio) => println("Settings file found, portfolio loaded: " + portfolio)
-        SimulationModel.allocationProperty.value = new FixedAllocation((for ((i,w) <- portfolio) yield (i, w.toDouble)).toMap)
-        portfolio
-      case None => println("Settings file found, but portfolio not loaded"); List.empty
-    }
+  val settings = try {
+    xml.XML.load(".portfolio")
   } catch {
     case ex: FileNotFoundException =>
       println("Settings file not found")
-      List.empty
+      xml.NodeSeq.Empty
     case ex: SAXParseException =>
       println("Settings file contents is not well-formed XML: " + ex.getMessage)
-      List.empty
+      xml.NodeSeq.Empty
   }
+  println(settings)
+  println(settings \ "portfolio")
 
-  SimulationModel.portfolioValues.onChange(updateChart)
-  SimulationModel.inflation.onChange(updateChart)
+  println(settings \ "initialInstalment")
+  (settings \ "initialInstalment").headOption.collect { case node =>
+    SimulationModel.initialInstalment.value = node.text.toInt
+  }
+  (settings \ "instalmentRuleID").headOption.collect { case node =>
+    Storage.fromXML[InstalmentRuleID](node) match {
+      case Some(irid) => println("Instalment Rule ID loaded: " + irid)
+        SimulationModel.instalmentRuleId.value = irid
+      case None => println("Instalment Rule ID not loaded")
+    }
+  }
+  (settings \ "strategyID").headOption.collect { case node =>
+    Storage.fromXML[StrategyID](node) match {
+      case Some(sid) => println("Strategy ID loaded: " + sid)
+        SimulationModel.strategyId.value = sid
+      case None => println("Strategy ID not loaded")
+    }
+  }
+  val allocation =
+    (settings \ "portfolio").headOption.collect { case node: xml.NodeSeq =>
+      Storage.fromXML[List[(Instrument, Int)]](node) match {
+        case Some(portfolio) => println("Settings file found, portfolio loaded: " + portfolio)
+          SimulationModel.allocationProperty.value = new FixedAllocation((for ((i, w) <- portfolio) yield (i, w.toDouble)).toMap)
+          portfolio
+        case None => println("Settings file found, but portfolio not loaded"); List.empty
+      }
+    }
 
-  val portfolioModel = new PortfolioModel(allocation)
+  val portfolioModel = new PortfolioModel(allocation.getOrElse(List.empty))
   val portfolioEditor = PortfolioEditor.init(portfolioModel, () => {
     SimulationModel.allocationProperty.value = new FixedAllocation(portfolioModel.get.toMap)
     rootNode.children = chart
   })
+
+  SimulationModel.portfolioValues.onChange(updateChart)
+  SimulationModel.inflation.onChange(updateChart)
 
   def addVBox: Node =
     new VBox {
@@ -83,23 +107,16 @@ object Simulation extends JFXApp {
           children = List(
             new TextField {
               maxWidth = 100
-              val filter = { change: TextFormatter.Change =>
-                if (change.text.matches("[0-9]*")) change else null
-              }
-              textFormatter = new TextFormatter(javafx.scene.control.TextFormatter.IDENTITY_STRING_CONVERTER,
-              "1000", filter) {
-
-              }
-              //SimulationModel.initialInstalment <== text.value.toInt
+              textFormatter = new TextFormatter(
+                javafx.scene.control.TextFormatter.IDENTITY_STRING_CONVERTER,
+                SimulationModel.initialInstalment.value.toString,
+                {change => if (change.text.matches("[0-9]*")) change else null}) {}
               val initialInstalmentBinding = Bindings.createIntegerBinding (
-                () => {println("BINDING"); text.value.toInt},
-                text
-              )
+                () => {if (text.value.isEmpty) 0 else text.value.toInt},
+                text)
               focused.onChange({(_, _, newVal) => if (!newVal)
                 SimulationModel.initialInstalment.value = initialInstalmentBinding.intValue
               })
-
-
             },
             new ChoiceBox[InstalmentCurrencyID] {
               items = ObservableBuffer(InstalmentCurrencyID.values)
@@ -144,8 +161,13 @@ object Simulation extends JFXApp {
   }
 
   override def stopApp = {
-    val x = Storage.toXML(portfolioModel.getWeights)
-    xml.XML.save(".portfolio", x.head)
+    val x = <settings>
+      {if (portfolioModel.length > 0) Storage.toXML(portfolioModel.getWeights)}
+      <initialInstalment>{SimulationModel.initialInstalment.value}</initialInstalment>
+      {Storage.toXML(SimulationModel.instalmentRuleId.value)}
+      {Storage.toXML(SimulationModel.strategyId.value)}
+    </settings>
+    xml.XML.save(".portfolio", x.head, "utf-8")
   }
 }
 
