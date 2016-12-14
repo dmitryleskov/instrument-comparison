@@ -9,6 +9,7 @@ import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.beans.binding.Bindings
+import scalafx.beans.property.IntegerProperty
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
 import scalafx.geometry.Insets
@@ -23,7 +24,7 @@ object Simulation extends JFXApp {
     val investmentRT =
       SimulationModel.results
         .map(x => (x.serial, x.instalment))
-        .scanLeft((0, 0.0))({case ((_, prev), (month, amount)) => (month,prev + amount)})
+        .scanLeft((0, SimulationModel.initialAmount.value.toDouble))({case ((_, prev), (month, amount)) => (month,prev + amount)})
         .tail
 
     println(SimulationModel.inflation.length)
@@ -57,6 +58,10 @@ object Simulation extends JFXApp {
   println(settings)
   println(settings \ "portfolio")
 
+  println(settings \ "initialAmount")
+  (settings \ "initialAmount").headOption.collect { case node =>
+    SimulationModel.initialAmount.value = node.text.toInt
+  }
   println(settings \ "initialInstalment")
   (settings \ "initialInstalment").headOption.collect { case node =>
     SimulationModel.initialInstalment.value = node.text.toInt
@@ -94,6 +99,20 @@ object Simulation extends JFXApp {
   SimulationModel.portfolioValues.onChange(updateChart)
   SimulationModel.inflation.onChange(updateChart)
 
+  def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
+    new TextField {
+      maxWidth = 100
+      textFormatter = new TextFormatter(
+        javafx.scene.control.TextFormatter.IDENTITY_STRING_CONVERTER,
+        bindTo.value.toString, { change => if (change.text.matches("[0-9]*")) change else null }) {}
+      val binding = Bindings.createIntegerBinding(
+        () => {if (text.value.isEmpty) 0 else text.value.toInt},
+        text)
+      focused.onChange({ (_, _, newVal) => if (!newVal)
+        bindTo.value = binding.intValue
+      })
+    }
+
   def addVBox: Node =
     new VBox {
       padding = Insets(15)
@@ -102,22 +121,12 @@ object Simulation extends JFXApp {
         new Button("Edit Portfolio") {
           onAction = (e: ActionEvent) => {rootNode.children = portfolioEditor}
         },
+        new Label("Initial Amount"),
+        intField(100, SimulationModel.initialAmount),
         new Label("Monthly Instalment"),
         new HBox {
           children = List(
-            new TextField {
-              maxWidth = 100
-              textFormatter = new TextFormatter(
-                javafx.scene.control.TextFormatter.IDENTITY_STRING_CONVERTER,
-                SimulationModel.initialInstalment.value.toString,
-                {change => if (change.text.matches("[0-9]*")) change else null}) {}
-              val initialInstalmentBinding = Bindings.createIntegerBinding (
-                () => {if (text.value.isEmpty) 0 else text.value.toInt},
-                text)
-              focused.onChange({(_, _, newVal) => if (!newVal)
-                SimulationModel.initialInstalment.value = initialInstalmentBinding.intValue
-              })
-            },
+            intField(100, SimulationModel.initialInstalment),
             new ChoiceBox[InstalmentCurrencyID] {
               items = ObservableBuffer(InstalmentCurrencyID.values)
               value <==> SimulationModel.instalmentCurrencyId
@@ -163,6 +172,7 @@ object Simulation extends JFXApp {
   override def stopApp = {
     val x = <settings>
       {if (portfolioModel.length > 0) Storage.toXML(portfolioModel.getWeights)}
+      <initialAmount>{SimulationModel.initialAmount.value}</initialAmount>
       <initialInstalment>{SimulationModel.initialInstalment.value}</initialInstalment>
       {Storage.toXML(SimulationModel.instalmentRuleId.value)}
       {Storage.toXML(SimulationModel.strategyId.value)}

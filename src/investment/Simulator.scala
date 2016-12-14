@@ -10,7 +10,8 @@ case class Snapshot(serial: Int,
                     portfolio: Portfolio,
                     value: Double)
 
-class Simulator(val allocation: AssetAllocation,
+class Simulator(val initialAmount: Int,
+                val allocation: AssetAllocation,
                 val rule: InstalmentRule,
                 val strategy: Strategy) {
 
@@ -25,9 +26,10 @@ class Simulator(val allocation: AssetAllocation,
     *         instalment added and resulting asset allocation
     */
   def simulate(start: YearMonth, length: Int) = {
-    var portfolio: Portfolio = for (instrument <- allocation.allocation(1).keys.toList) yield Position(instrument, 0)
+    val templatePortfolio: Portfolio = for (instrument <- allocation.allocation(1).keys.toList) yield Position(instrument, 0)
+    var portfolio = new Split(allocation).invest(1, start, templatePortfolio, initialAmount)
     val snapshots = ArrayBuffer[Snapshot]()
-    var totalInvestment = 0.0
+    var totalInvestment = initialAmount.toDouble
     var totalYield = 0.0
     var month = 1
     var cur: YearMonth = start
@@ -46,10 +48,11 @@ class Simulator(val allocation: AssetAllocation,
                     yield Position(instrument, amount * splits.getOrElse(instrument, 1.0))
       }
       val instalment = rule.instalment(month)
-      val extra = for(Position(instrument, amount) <- portfolio) yield
+      val extra = for (Position(instrument, amount) <- portfolio) yield
         instrument.yieldPercentage(cur) * instrument.price(cur) * amount
       portfolio = strategy.invest(month, cur, portfolio, instalment + extra.sum)
       totalInvestment += instalment
+      totalYield += extra.sum
       def portfolioValue(ym: YearMonth, portfolio: Portfolio): Double = {
         (for(Position(instrument, amount) <- portfolio) yield instrument.price(ym) * amount).sum
       }

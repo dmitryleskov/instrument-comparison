@@ -37,6 +37,7 @@ object Main extends App {
     println("Start: " + start.plusMonths(d))
     for (allocation <- allocations) {
       val sim = new Simulator(
+        0,
         allocation,
         //      new InflationAdjusted(start.plusMonths(d), 1000.0),
         //        new AnnualIncrease(start.plusMonths(d), 1000.0, 1.05),

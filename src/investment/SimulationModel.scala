@@ -36,7 +36,10 @@ object SimulationModel {
     val values = Seq(RUB, USD)
   }
 
-  val initialInstalment = IntegerProperty(0) // FIXME
+  val initialAmount = IntegerProperty(0)
+  initialAmount.onChange(updateResults)
+
+  val initialInstalment = IntegerProperty(0)
   initialInstalment.onChange(updateResults)
 
   val allocationProperty = ObjectProperty[AssetAllocation](this, "allocation")
@@ -53,9 +56,8 @@ object SimulationModel {
 
   def updateResults() = {
     println("Updating results")
+    val initialAmount = SimulationModel.initialAmount.value
     val allocation = allocationProperty.value
-    println(allocation)
-
     if (allocation == null || strategyId.value == null || instalmentRuleId.value == null) {
       results.clear()
       portfolioValues.clear()
@@ -78,14 +80,15 @@ object SimulationModel {
         //        new InflationAdjusted(start, 1000.0)
       }
 
-
       val sim = new Simulator(
+        initialAmount,
         allocation,
         instalmentRule,
         strategy)
 
       val inflationAllocation = new FixedAllocation(Map(Inflation -> 1.0))
       val inflationSim = new Simulator(
+        initialAmount,
         inflationAllocation,
         instalmentRule,
         new Split(inflationAllocation))
