@@ -22,7 +22,7 @@ object Simulation extends JFXApp {
 
   def updateChart: Unit = {
     val investmentRT =
-      SimulationModel.results
+      SimulationModel.snapshots
         .map(x => (x.serial, x.instalment))
         .scanLeft((0, SimulationModel.initialAmount.value.toDouble))({case ((_, prev), (month, amount)) => (month,prev + amount)})
         .tail
@@ -140,6 +140,12 @@ object Simulation extends JFXApp {
         new ChoiceBox[StrategyID] {
           items = ObservableBuffer(StrategyID.values)
           value <==> SimulationModel.strategyId
+        },
+        new Separator(),
+        new TextArea {
+          maxWidth = 150
+          editable = false
+          text <== SimulationModel.summary
         }
       )
     }

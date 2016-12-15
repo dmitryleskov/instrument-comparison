@@ -10,6 +10,10 @@ case class Snapshot(serial: Int,
                     portfolio: Portfolio,
                     value: Double)
 
+case class SimulationResults(snapshots: List[Snapshot],
+                             totalInvestment: Double,
+                             totalYield: Double)
+
 class Simulator(val initialAmount: Int,
                 val allocation: AssetAllocation,
                 val rule: InstalmentRule,
@@ -59,7 +63,6 @@ class Simulator(val initialAmount: Int,
       snapshots += Snapshot(month, cur, instalment, portfolio, portfolioValue(cur, portfolio))
       month = month + 1
     }
-    println(snapshots.toList)
-    snapshots.toList
+    SimulationResults(snapshots.toList, totalInvestment, totalYield)
   }
 }

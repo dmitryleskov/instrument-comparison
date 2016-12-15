@@ -1,15 +1,18 @@
 package investment
 
 import java.time.temporal.ChronoUnit
+import javafx.beans.property.ReadOnlyStringProperty
 
-import investment.SimulationModel.InstalmentRuleID.{InflationAdjusted, AnnualIncrease, FixedAmount}
-import investment.SimulationModel.StrategyID.{RebalanceMonthly, BalanceGradually, Split}
+import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted}
+import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}
 
-import scalafx.beans.property.{ObjectProperty, IntegerProperty}
+import scalafx.beans.property.{IntegerProperty, ObjectProperty, StringProperty}
 import scalafx.collections.ObservableBuffer
 
 object SimulationModel {
-  val results = new ObservableBuffer[Snapshot]()
+  private val _summary = StringProperty("")
+  def summary: ReadOnlyStringProperty = _summary
+  val snapshots = new ObservableBuffer[Snapshot]()
   val inflation = new ObservableBuffer[(Snapshot)]()
   val portfolioValues = new ObservableBuffer[(Int, Double)]
 
@@ -54,12 +57,12 @@ object SimulationModel {
   val instalmentCurrencyId = ObjectProperty[InstalmentCurrencyID](this, "currency")
   instalmentCurrencyId.onChange(updateResults)
 
-  def updateResults() = {
+  private def updateResults() = {
     println("Updating results")
     val initialAmount = SimulationModel.initialAmount.value
     val allocation = allocationProperty.value
     if (allocation == null || strategyId.value == null || instalmentRuleId.value == null) {
-      results.clear()
+      snapshots.clear()
       portfolioValues.clear()
     } else {
       val start = (((Inflation, 1.0) :: allocation.allocation(1).toList) map (_._1.startDate)).max
@@ -93,12 +96,25 @@ object SimulationModel {
         instalmentRule,
         new Split(inflationAllocation))
 
-      results.setAll(sim.simulate(start, start.until(end, ChronoUnit.MONTHS).toInt + 1): _*)
+      val duration = start.until(end, ChronoUnit.MONTHS).toInt + 1
 
-      portfolioValues.setAll(results map (x => (x.serial, x.value)))
+      val results = sim.simulate(start, duration)
+      snapshots.setAll(results.snapshots: _*)
 
-      inflation.setAll(inflationSim.simulate(start, start.until(end, ChronoUnit.MONTHS).toInt + 1): _*)
-      println(inflation)
+      portfolioValues.setAll(snapshots map (x => (x.serial, x.value)))
+
+      val inflationResults = inflationSim.simulate(start, duration)
+      inflation.setAll(inflationResults.snapshots: _*)
+
+      _summary.value =
+        snapshots.last.ym + "\n" +
+        snapshots.last.instalment.formatted("%.2f") + "\n" +
+        snapshots.last.portfolio + "\n" +
+        "Portfolio Value: " + snapshots.last.value.formatted("%.2f") + "\n" +
+        "Investment: " + results.totalInvestment.formatted("%.2f") + "\n" +
+        "Yield: " + results.totalYield.formatted("%.2f") + "\n" +
+        "Inflation-adjusted Return: " + "\n" +
+        ((snapshots.last.value - inflationResults.snapshots.last.value) / inflationResults.snapshots.last.value * 100).formatted("%.1f%%")
     }
   }
 }
