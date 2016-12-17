@@ -3,6 +3,7 @@ package investment
 import java.io.FileNotFoundException
 import java.time.Month
 
+import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
 import investment.SimulationModel.{InstalmentCurrencyID, InstalmentRuleID, StrategyID}
 import org.xml.sax.SAXParseException
 
@@ -103,7 +104,7 @@ object Simulation extends JFXApp {
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
     new TextField {
-      maxWidth = 100
+      maxWidth = _maxWidth
       textFormatter = new TextFormatter(
         javafx.scene.control.TextFormatter.IDENTITY_STRING_CONVERTER,
         bindTo.value.toString, { change => if (change.text.matches("[0-9]*")) change else null }) {}
@@ -125,20 +126,41 @@ object Simulation extends JFXApp {
         },
         new Label("Initial Amount"),
         intField(100, SimulationModel.initialAmount),
-        new Label("Monthly Instalment"),
-        new HBox {
-          children = List(
-            intField(100, SimulationModel.initialInstalment),
-            new ChoiceBox[InstalmentCurrencyID] {
-              items = ObservableBuffer(InstalmentCurrencyID.values)
-              value <==> SimulationModel.instalmentCurrencyId
-            }
-          )
-        },
+        new Label("Instalments"),
         new ChoiceBox[InstalmentRuleID] {
           items = ObservableBuffer(InstalmentRuleID.values)
           value <==> SimulationModel.instalmentRuleId
         },
+        new StackPane {
+          alignment = javafx.geometry.Pos.TOP_LEFT
+          children = List(
+            new VBox {
+              visible <== SimulationModel.instalmentRuleId =!= SalaryPercentage
+              children = List(
+                new Label("Initial Instalment") {
+                  visible <== SimulationModel.instalmentRuleId =!= SalaryPercentage
+                }, {
+                  val ii = intField(100, SimulationModel.initialInstalment)
+                  ii.disable <== SimulationModel.instalmentRuleId === SalaryPercentage
+                  ii
+                })
+            }, new HBox {
+              alignment = javafx.geometry.Pos.CENTER_LEFT
+              spacing = 5
+              visible <== SimulationModel.instalmentRuleId === SalaryPercentage
+              children = List(
+                {
+                  val sp = intField(40, SimulationModel.salaryPercentage)
+                  sp.alignment = javafx.geometry.Pos.CENTER_RIGHT
+                  sp.disable <== SimulationModel.instalmentRuleId =!= SalaryPercentage
+                  sp
+                },
+                new Label("%")
+              )
+            }
+          )
+        },
+        new Label("Strategy"),
         new ChoiceBox[StrategyID] {
           items = ObservableBuffer(StrategyID.values)
           value <==> SimulationModel.strategyId
@@ -168,7 +190,7 @@ object Simulation extends JFXApp {
     upperBound <== (SimulationModel.length / 12 + 1) * 12
   }
   val yAxis = new NumberAxis
-  val lineChart = LineChart(xAxis, yAxis) 
+  val lineChart = LineChart(xAxis, yAxis)
   lineChart.title = "Portfolio Performance"
 
   val chart = new BorderPane {

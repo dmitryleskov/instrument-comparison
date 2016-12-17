@@ -29,3 +29,9 @@ class InflationAdjusted(override val start: YearMonth, val initialAmount: Double
     if (n == 1) initialAmount
     else (1 + Inflation.rates(start.plusMonths(n - 1))) * instalment(n - 1)
 }
+
+/** Percentage of the official average salary */
+class SalaryPercentage(override val start: YearMonth, val percentage: Double) extends InstalmentRule(start) {
+  override def instalment(n: Int): Double =
+    AverageSalary.rates(start.plusMonths(n - 1)) * percentage
+}

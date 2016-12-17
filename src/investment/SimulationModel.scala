@@ -3,7 +3,7 @@ package investment
 import java.time.temporal.ChronoUnit
 import javafx.beans.property.ReadOnlyStringProperty
 
-import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted}
+import investment.SimulationModel.InstalmentRuleID.{SalaryPercentage, AnnualIncrease, FixedAmount, InflationAdjusted}
 import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}
 
 import scalafx.beans.property.{ReadOnlyIntegerProperty, IntegerProperty, ObjectProperty, StringProperty}
@@ -31,7 +31,8 @@ object SimulationModel {
     case object FixedAmount extends InstalmentRuleID {override def toString() = "Fixed Amount"}
     case object AnnualIncrease extends InstalmentRuleID {override def toString() = "Annual Increase"}
     case object InflationAdjusted extends InstalmentRuleID {override def toString() = "Inflation Adjusted"}
-    val values = Seq(FixedAmount, AnnualIncrease, InflationAdjusted)
+    case object SalaryPercentage extends InstalmentRuleID {override def toString() = "Salary Percentage"}
+    val values = Seq(FixedAmount, AnnualIncrease, InflationAdjusted, SalaryPercentage)
   }
 
   sealed abstract class InstalmentCurrencyID
@@ -44,20 +45,23 @@ object SimulationModel {
   val initialAmount = IntegerProperty(0)
   initialAmount.onChange(updateResults)
 
+  val instalmentRuleId = ObjectProperty[InstalmentRuleID](this, "instalmentRule")
+  instalmentRuleId.onChange(updateResults)
+
+  val instalmentCurrencyId = ObjectProperty[InstalmentCurrencyID](this, "currency")
+  instalmentCurrencyId.onChange(updateResults)
+
   val initialInstalment = IntegerProperty(0)
   initialInstalment.onChange(updateResults)
+
+  val salaryPercentage = IntegerProperty(10)
+  salaryPercentage.onChange(updateResults)
 
   val allocationProperty = ObjectProperty[AssetAllocation](this, "allocation")
   allocationProperty.onChange(updateResults)
 
   val strategyId = ObjectProperty[StrategyID](this, "strategy")
   strategyId.onChange(updateResults)
-
-  val instalmentRuleId = ObjectProperty[InstalmentRuleID](this, "instalmentRule")
-  instalmentRuleId.onChange(updateResults)
-
-  val instalmentCurrencyId = ObjectProperty[InstalmentCurrencyID](this, "currency")
-  instalmentCurrencyId.onChange(updateResults)
 
   private def updateResults() = {
     println("Updating results")
@@ -81,6 +85,7 @@ object SimulationModel {
         case FixedAmount => new FixedAmount(start, initialInstalment.value)
         case AnnualIncrease => new AnnualIncrease(start, initialInstalment.value, 1.05)
         case InflationAdjusted => new InflationAdjusted(start, initialInstalment.value)
+        case SalaryPercentage => new SalaryPercentage(start, salaryPercentage.value.toDouble / 100.0)
         //case ew FixedUSDAmount(start, 10.0)
         //        new InflationAdjusted(start, 1000.0)
       }
