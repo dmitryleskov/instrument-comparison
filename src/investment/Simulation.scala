@@ -1,6 +1,7 @@
 package investment
 
 import java.io.FileNotFoundException
+import java.time.Month
 
 import investment.SimulationModel.{InstalmentCurrencyID, InstalmentRuleID, StrategyID}
 import org.xml.sax.SAXParseException
@@ -9,7 +10,7 @@ import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.beans.binding.Bindings
-import scalafx.beans.property.IntegerProperty
+import scalafx.beans.property.{DoubleProperty, IntegerProperty}
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
 import scalafx.geometry.Insets
@@ -17,24 +18,27 @@ import scalafx.scene.chart.{LineChart, NumberAxis, XYChart}
 import scalafx.scene.control._
 import scalafx.scene.layout.{BorderPane, HBox, StackPane, VBox}
 import scalafx.scene.{Node, Scene}
+import scalafx.util.StringConverter
 
 object Simulation extends JFXApp {
 
   def updateChart: Unit = {
+    // Shift serial numbers (1-based) so that Januaries fall on multiples of 12
+    val offset = SimulationModel.snapshots(0).ym.getMonthValue - 2
+
     val investmentRT =
       SimulationModel.snapshots
         .map(x => (x.serial, x.instalment))
         .scanLeft((0, SimulationModel.initialAmount.value.toDouble))({case ((_, prev), (month, amount)) => (month,prev + amount)})
         .tail
 
-    println(SimulationModel.inflation.length)
-    val data0 = ObservableBuffer(SimulationModel.inflation map { case Snapshot(serial, _, _, _, value) => XYChart.Data[Number, Number](serial, value) })
+    val data0 = ObservableBuffer(SimulationModel.inflation map { case Snapshot(serial, _, _, _, value) => XYChart.Data[Number, Number](serial + offset, value) })
     val series0 = XYChart.Series[Number, Number]("Inflation", data0)
 
-    val data1 = ObservableBuffer(investmentRT map { case (x, y) => XYChart.Data[Number, Number](x, y) })
+    val data1 = ObservableBuffer(investmentRT map { case (x, y) => XYChart.Data[Number, Number](x + offset, y) })
     val series1 = XYChart.Series[Number, Number]("Investment", data1)
 
-    val data2 = ObservableBuffer(SimulationModel.portfolioValues map { case (x, y) => XYChart.Data[Number, Number](x, y) })
+    val data2 = ObservableBuffer(SimulationModel.portfolioValues map { case (x, y) => XYChart.Data[Number, Number](x + offset, y) })
     val series2 = XYChart.Series[Number, Number]("Portfolio", data2)
 
     lineChart.getData.clear()
@@ -42,8 +46,6 @@ object Simulation extends JFXApp {
     lineChart.getData.add(series1)
     lineChart.getData.add(series2)
   }
-
-  //println(SessionManager.t)
 
   val settings = try {
     xml.XML.load(".portfolio")
@@ -150,13 +152,23 @@ object Simulation extends JFXApp {
       )
     }
 
-  // Defining the axes
-  val xAxis = new NumberAxis
-  xAxis.label = "Number of Month"
+  val xAxis = new NumberAxis {
+    tickLabelFormatter = new StringConverter[Number] {
+      override def fromString(s: String) = 0
+      override def toString(n: Number) = {
+        if (!SimulationModel.snapshots.isEmpty)
+          SimulationModel.snapshots(0).ym.plusMonths(n.intValue).getYear.toString
+        else ""
+      }
+    }
+    autoRanging = false
+    tickUnit = 12
+    minorTickCount = 4
+    lowerBound = 0
+    upperBound <== (SimulationModel.length / 12 + 1) * 12
+  }
   val yAxis = new NumberAxis
-
-  // Creating the chart
-  val lineChart = LineChart(xAxis, yAxis)
+  val lineChart = LineChart(xAxis, yAxis) 
   lineChart.title = "Portfolio Performance"
 
   val chart = new BorderPane {
