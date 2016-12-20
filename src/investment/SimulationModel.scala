@@ -6,12 +6,14 @@ import javafx.beans.property.ReadOnlyStringProperty
 import investment.SimulationModel.InstalmentRuleID.{SalaryPercentage, AnnualIncrease, FixedAmount, InflationAdjusted}
 import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}
 
-import scalafx.beans.property.{ReadOnlyIntegerProperty, IntegerProperty, ObjectProperty, StringProperty}
+import scalafx.beans.property.{IntegerProperty, ObjectProperty, ReadOnlyIntegerProperty, StringProperty}
 import scalafx.collections.ObservableBuffer
 
 object SimulationModel {
-  private val _length = IntegerProperty(120)
-  def length: ReadOnlyIntegerProperty = _length
+  private val _minYear = IntegerProperty(2006)
+  def minYear: ReadOnlyIntegerProperty = _minYear
+  private val _maxYear = IntegerProperty(2016)
+  def maxYear: ReadOnlyIntegerProperty = _maxYear
   private val _summary = StringProperty("")
   def summary: ReadOnlyStringProperty = _summary
   val snapshots = new ObservableBuffer[Snapshot]()
@@ -112,7 +114,8 @@ object SimulationModel {
       val inflationResults = inflationSim.simulate(start, duration)
       inflation.setAll(inflationResults.snapshots: _*)
 
-      _length.value = duration
+      _minYear.value = snapshots.head.ym.getYear
+      _maxYear.value = snapshots.last.ym.getYear
       _summary.value =
         snapshots.last.ym + "\n" +
         snapshots.last.instalment.formatted("%.2f") + "\n" +

@@ -1,17 +1,16 @@
 package investment
 
 import java.io.FileNotFoundException
-import java.time.Month
 
 import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
-import investment.SimulationModel.{InstalmentCurrencyID, InstalmentRuleID, StrategyID}
+import investment.SimulationModel.{InstalmentRuleID, StrategyID}
 import org.xml.sax.SAXParseException
 
 import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.beans.binding.Bindings
-import scalafx.beans.property.{DoubleProperty, IntegerProperty}
+import scalafx.beans.property.IntegerProperty
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
 import scalafx.geometry.Insets
@@ -187,11 +186,12 @@ object Simulation extends JFXApp {
     tickUnit = 12
     minorTickCount = 4
     lowerBound = 0
-    upperBound <== (SimulationModel.length / 12 + 1) * 12
+    upperBound <== (SimulationModel.maxYear - SimulationModel.minYear + 1) * 12
   }
   val yAxis = new NumberAxis
-  val lineChart = LineChart(xAxis, yAxis)
-  lineChart.title = "Portfolio Performance"
+  val lineChart = new LineChart(xAxis, yAxis) {
+    title = "Portfolio Performance"
+  }
 
   val chart = new BorderPane {
     left = addVBox
