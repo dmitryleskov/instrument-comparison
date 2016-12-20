@@ -3,7 +3,7 @@ package investment
 import java.time.temporal.ChronoUnit
 import javafx.beans.property.ReadOnlyStringProperty
 
-import investment.SimulationModel.InstalmentRuleID.{SalaryPercentage, AnnualIncrease, FixedAmount, InflationAdjusted}
+import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted, SalaryPercentage}
 import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}
 
 import scalafx.beans.property.{IntegerProperty, ObjectProperty, ReadOnlyIntegerProperty, StringProperty}
@@ -73,8 +73,8 @@ object SimulationModel {
       snapshots.clear()
       portfolioValues.clear()
     } else {
-      val start = (((Inflation, 1.0) :: allocation.allocation(1).toList) map (_._1.startDate)).max
-      val end = (((Inflation, 1.0) :: allocation.allocation(1).toList) map (_._1.endDate)).min
+      val start = (((Inflation, 1.0) :: (AverageSalary, 1.0) :: allocation.allocation(1).toList) map (_._1.startDate)).max
+      val end = (((Inflation, 1.0) :: (AverageSalary, 1.0) :: allocation.allocation(1).toList) map (_._1.endDate)).min
       println(Inflation.endDate)
       println(start, end)
       val strategy = strategyId.value match {
