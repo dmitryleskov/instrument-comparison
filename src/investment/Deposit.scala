@@ -12,7 +12,7 @@ case object DepositRUB extends Instrument {
   override def price(ym: YearMonth): Double = 1.0
 
   /** Yield (interest, dividends, etc) of the given instrument in the given month in percents to its value */
-  override def yieldPercentage(ym: YearMonth): Double = interest(ym) / 12
+  override def yieldPercentage(ym: YearMonth): Double = math.pow(1.0 + interest(ym), 1.0 / 12.0) - 1.0
 
   override lazy val startDate = interest.keys.min
   override lazy val endDate = interest.keys.max
@@ -44,9 +44,5 @@ case class DepositUSD(annualInterest: Double) extends Instrument {
   override def price(ym: YearMonth): Double = USDRUB.mid(ym)
 
   /** Yield (interest, dividends, etc) of the given instrument in the given month in percents to its value */
-  override def yieldPercentage(ym: YearMonth): Double = {
-    val yp = annualInterest / 12 * (USDRUB.mid(ym) - USDRUB.mid(ym.minusMonths(1))) / USDRUB.mid(ym.minusMonths(1)) * 100
-    println(ym, USDRUB.mid(ym), USDRUB.mid(ym.minusMonths(1)))
-    yp
-  }
+  override def yieldPercentage(ym: YearMonth): Double = math.pow(1.0 + annualInterest, 1.0 / 12.0) - 1.0
 }
