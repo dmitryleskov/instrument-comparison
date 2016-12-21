@@ -6,13 +6,10 @@ import scala.collection.mutable.ArrayBuffer
 
 case class Snapshot(serial: Int,
                     ym: YearMonth,
+                    _yield: Double,
                     instalment: Double,
                     portfolio: Portfolio,
                     value: Double)
-
-case class SimulationResults(snapshots: List[Snapshot],
-                             totalInvestment: Double,
-                             totalYield: Double)
 
 class Simulator(val initialAmount: Int,
                 val allocation: AssetAllocation,
@@ -33,8 +30,6 @@ class Simulator(val initialAmount: Int,
     val templatePortfolio: Portfolio = for (instrument <- allocation.allocation(1).keys.toList) yield Position(instrument, 0)
     var portfolio = new Split(allocation).invest(1, start, templatePortfolio, initialAmount)
     val snapshots = ArrayBuffer[Snapshot]()
-    var totalInvestment = initialAmount.toDouble
-    var totalYield = 0.0
     var month = 1
     var cur: YearMonth = start
     val reinvest = true
@@ -52,17 +47,15 @@ class Simulator(val initialAmount: Int,
                     yield Position(instrument, amount * splits.getOrElse(instrument, 1.0))
       }
       val instalment = rule.instalment(month)
-      val extra = for (Position(instrument, amount) <- portfolio) yield
-        instrument.yieldPercentage(cur) * instrument.price(cur) * amount
-      portfolio = strategy.invest(month, cur, portfolio, instalment + extra.sum)
-      totalInvestment += instalment
-      totalYield += extra.sum
+      val _yield = (for (Position(instrument, amount) <- portfolio) yield
+        instrument.yieldPercentage(cur) * instrument.price(cur) * amount).sum
+      portfolio = strategy.invest(month, cur, portfolio, instalment + _yield)
       def portfolioValue(ym: YearMonth, portfolio: Portfolio): Double = {
         (for(Position(instrument, amount) <- portfolio) yield instrument.price(ym) * amount).sum
       }
-      snapshots += Snapshot(month, cur, instalment, portfolio, portfolioValue(cur, portfolio))
+      snapshots += Snapshot(month, cur, _yield, instalment, portfolio, portfolioValue(cur, portfolio))
       month = month + 1
     }
-    SimulationResults(snapshots.toList, totalInvestment, totalYield)
+    snapshots.toList
   }
 }

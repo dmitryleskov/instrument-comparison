@@ -18,7 +18,6 @@ object SimulationModel {
   def summary: ReadOnlyStringProperty = _summary
   val snapshots = new ObservableBuffer[Snapshot]()
   val inflation = new ObservableBuffer[(Snapshot)]()
-  val portfolioValues = new ObservableBuffer[(Int, Double)]
 
   sealed abstract class StrategyID
   object StrategyID {
@@ -71,7 +70,6 @@ object SimulationModel {
     val allocation = allocationProperty.value
     if (allocation == null || strategyId.value == null || instalmentRuleId.value == null) {
       snapshots.clear()
-      portfolioValues.clear()
     } else {
       val start = (((Inflation, 1.0) :: (AverageSalary, 1.0) :: allocation.allocation(1).toList) map (_._1.startDate)).max
       val end = (((Inflation, 1.0) :: (AverageSalary, 1.0) :: allocation.allocation(1).toList) map (_._1.endDate)).min
@@ -89,7 +87,6 @@ object SimulationModel {
         case InflationAdjusted => new InflationAdjusted(start, initialInstalment.value)
         case SalaryPercentage => new SalaryPercentage(start, salaryPercentage.value.toDouble / 100.0)
         //case ew FixedUSDAmount(start, 10.0)
-        //        new InflationAdjusted(start, 1000.0)
       }
 
       val sim = new Simulator(
@@ -107,12 +104,13 @@ object SimulationModel {
 
       val duration = start.until(end, ChronoUnit.MONTHS).toInt + 1
 
-      val results = sim.simulate(start, duration)
-      snapshots.setAll(results.snapshots: _*)
-      portfolioValues.setAll(snapshots map (x => (x.serial, x.value)))
+      snapshots.setAll(sim.simulate(start, duration): _*)
+    //  portfolioValues.setAll(snapshots map (x => (x.serial, x.value)))
+      val totalYield = snapshots.foldLeft(0.0)(_ + _._yield)
+      val totalInvestment = snapshots.foldLeft(initialAmount.toDouble)(_ + _.instalment)
 
       val inflationResults = inflationSim.simulate(start, duration)
-      inflation.setAll(inflationResults.snapshots: _*)
+      inflation.setAll(inflationResults: _*)
 
       _minYear.value = snapshots.head.ym.getYear
       _maxYear.value = snapshots.last.ym.getYear
@@ -121,10 +119,10 @@ object SimulationModel {
         snapshots.last.instalment.formatted("%.2f") + "\n" +
         snapshots.last.portfolio + "\n" +
         "Portfolio Value: " + snapshots.last.value.formatted("%.2f") + "\n" +
-        "Investment: " + results.totalInvestment.formatted("%.2f") + "\n" +
-        "Yield: " + results.totalYield.formatted("%.2f") + "\n" +
+        "Investment: " + totalInvestment.formatted("%.2f") + "\n" +
+        "Yield: " + totalYield.formatted("%.2f") + "\n" +
         "Inflation-adjusted Return: " + "\n" +
-        ((snapshots.last.value - inflationResults.snapshots.last.value) / inflationResults.snapshots.last.value * 100).formatted("%.1f%%")
+        ((snapshots.last.value - inflationResults.last.value) / inflationResults.last.value * 100).formatted("%.1f%%")
     }
   }
 }

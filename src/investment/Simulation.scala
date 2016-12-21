@@ -26,19 +26,20 @@ object Simulation extends JFXApp {
     // Shift serial numbers (1-based) so that Januaries fall on multiples of 12
     val offset = SimulationModel.snapshots(0).ym.getMonthValue - 2
 
+    // Investment running total
     val investmentRT =
       SimulationModel.snapshots
-        .map(x => (x.serial, x.instalment))
-        .scanLeft((0, SimulationModel.initialAmount.value.toDouble))({case ((_, prev), (month, amount)) => (month,prev + amount)})
+        .map(s => (s.serial, s.instalment))
+        .scanLeft((0, SimulationModel.initialAmount.value.toDouble))({case ((_, prev), (month, amount)) => (month, prev + amount)})
         .tail
 
-    val data0 = ObservableBuffer(SimulationModel.inflation map { case Snapshot(serial, _, _, _, value) => XYChart.Data[Number, Number](serial + offset, value) })
+    val data0 = ObservableBuffer(SimulationModel.inflation map { case s: Snapshot => XYChart.Data[Number, Number](s.serial + offset, s.value) })
     val series0 = XYChart.Series[Number, Number]("Inflation", data0)
 
     val data1 = ObservableBuffer(investmentRT map { case (x, y) => XYChart.Data[Number, Number](x + offset, y) })
     val series1 = XYChart.Series[Number, Number]("Investment", data1)
 
-    val data2 = ObservableBuffer(SimulationModel.portfolioValues map { case (x, y) => XYChart.Data[Number, Number](x + offset, y) })
+    val data2 = ObservableBuffer(SimulationModel.snapshots map { case s: Snapshot => XYChart.Data[Number, Number](s.serial + offset, s.value) })
     val series2 = XYChart.Series[Number, Number]("Portfolio", data2)
 
     lineChart.getData.clear()
@@ -98,7 +99,7 @@ object Simulation extends JFXApp {
     rootNode.children = chart
   })
 
-  SimulationModel.portfolioValues.onChange(updateChart)
+  SimulationModel.snapshots.onChange(updateChart)
   SimulationModel.inflation.onChange(updateChart)
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
