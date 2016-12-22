@@ -23,10 +23,9 @@ class Simulator(val initialAmount: Int,
     * Run simulation defined by class parameters for `length` months
     * starting from `start`
     *
-    * @param start
-    * @param length
-    * @return A `Seq` of `(Int, Double, Portfolio)` representing month number,
-    *         instalment added and resulting asset allocation
+    * @param start First calendar month of simulation
+    * @param length Number of months to simulate, including the `start` month
+    * @return A `Seq` of `Snapshots`
     */
   def simulate(start: YearMonth, length: Int): List[Snapshot] = {
     val templatePortfolio: Portfolio = for (instrument <- allocation.allocation(1).keys.toList) yield Position(instrument, 0)

@@ -105,14 +105,11 @@ object SimulationModel {
 
       val duration = start.until(end, ChronoUnit.MONTHS).toInt + 1
 
-      snapshots.setAll(sim.simulate(start, duration): _*)
-      val totalIncome = (snapshots map (_.income)) sum
-      val last12MonthsIncome = ((snapshots.reverse take 12) map (_.income)) sum
-      val totalInvestment = snapshots.foldLeft(initialAmount.toDouble)(_ + _.instalment)
-      val maxAbsoluteDrawdown = snapshots.foldLeft((0.0, initialAmount.toDouble)) { case ((d, i), s) =>
-          val investedSoFar = i + s.instalment
-          (d.min((s.value - investedSoFar) / investedSoFar), investedSoFar)
-        } ._1
+      val results = sim.simulate(start, duration)
+      snapshots.setAll(results: _*)
+      println(snapshots take 2)
+
+      val stats = new Statistics(initialAmount, results)
 
       val inflationResults = inflationSim.simulate(start, duration)
       inflation.setAll(inflationResults: _*)
@@ -124,13 +121,13 @@ object SimulationModel {
         "Last instalment: " + snapshots.last.instalment.formatted("%.2f") + "\n" +
         snapshots.last.portfolio + "\n" +
         "Portfolio Value: " + snapshots.last.value.formatted("%.2f") + "\n" +
-        "Total Investment: " + totalInvestment.formatted("%.2f") + "\n" +
-        "Total Income: " + totalIncome.formatted("%.2f") + "\n" +
-        "Last 12M Income: " + last12MonthsIncome.formatted("%.2f") + "\n" +
+        "Total Investment: " + stats.totalInvestment.formatted("%.2f") + "\n" +
+        "Total Income: " + stats.totalIncome.formatted("%.2f") + "\n" +
+        "Last 12M Income: " + stats.last12MonthsIncome.formatted("%.2f") + "\n" +
         "Inflation-adjusted Return: " +
         ((snapshots.last.value - inflationResults.last.value) / inflationResults.last.value * 100).formatted("%.1f%%") + "\n" +
         "Max absolute drawdown: " +
-        (maxAbsoluteDrawdown * 100).formatted("%.1f%%")
+        (stats.maxAbsoluteDrawdown * 100).formatted("%.1f%%")
     }
   }
 }
