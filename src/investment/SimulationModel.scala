@@ -105,9 +105,13 @@ object SimulationModel {
       val duration = start.until(end, ChronoUnit.MONTHS).toInt + 1
 
       snapshots.setAll(sim.simulate(start, duration): _*)
-    //  portfolioValues.setAll(snapshots map (x => (x.serial, x.value)))
-      val totalYield = snapshots.foldLeft(0.0)(_ + _._yield)
+      val totalIncome = (snapshots map (_.income)) sum
+      val last12MonthsIncome = ((snapshots.reverse take 12) map (_.income)) sum
       val totalInvestment = snapshots.foldLeft(initialAmount.toDouble)(_ + _.instalment)
+      val maxAbsoluteDrawdown = snapshots.foldLeft((0.0, initialAmount.toDouble)) { case ((d, i), s) =>
+          val investedSoFar = i + s.instalment
+          (d.min((s.value - investedSoFar) / investedSoFar), investedSoFar)
+        } ._1
 
       val inflationResults = inflationSim.simulate(start, duration)
       inflation.setAll(inflationResults: _*)
@@ -115,14 +119,17 @@ object SimulationModel {
       _minYear.value = snapshots.head.ym.getYear
       _maxYear.value = snapshots.last.ym.getYear
       _summary.value =
-        snapshots.last.ym + "\n" +
-        snapshots.last.instalment.formatted("%.2f") + "\n" +
+        "Last month: " + snapshots.last.ym + "\n" +
+        "Last instalment: " + snapshots.last.instalment.formatted("%.2f") + "\n" +
         snapshots.last.portfolio + "\n" +
         "Portfolio Value: " + snapshots.last.value.formatted("%.2f") + "\n" +
-        "Investment: " + totalInvestment.formatted("%.2f") + "\n" +
-        "Yield: " + totalYield.formatted("%.2f") + "\n" +
-        "Inflation-adjusted Return: " + "\n" +
-        ((snapshots.last.value - inflationResults.last.value) / inflationResults.last.value * 100).formatted("%.1f%%")
+        "Total Investment: " + totalInvestment.formatted("%.2f") + "\n" +
+        "Total Income: " + totalIncome.formatted("%.2f") + "\n" +
+        "Last 12M Income: " + last12MonthsIncome.formatted("%.2f") + "\n" +
+        "Inflation-adjusted Return: " +
+        ((snapshots.last.value - inflationResults.last.value) / inflationResults.last.value * 100).formatted("%.1f%%") + "\n" +
+        "Max absolute drawdown: " +
+        (maxAbsoluteDrawdown * 100).formatted("%.1f%%")
     }
   }
 }

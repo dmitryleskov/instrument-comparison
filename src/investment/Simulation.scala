@@ -164,12 +164,6 @@ object Simulation extends JFXApp {
         new ChoiceBox[StrategyID] {
           items = ObservableBuffer(StrategyID.values)
           value <==> SimulationModel.strategyId
-        },
-        new Separator(),
-        new TextArea {
-          maxWidth = 150
-          editable = false
-          text <== SimulationModel.summary
         }
       )
     }
@@ -194,14 +188,35 @@ object Simulation extends JFXApp {
     title = "Portfolio Performance"
   }
 
+  val tabpane = new TabPane {
+    tabs = Seq(
+      new Tab {
+        text = "Chart"
+        closable = false
+        content = lineChart
+      },
+      new Tab {
+        text = "Stats"
+        closable = false
+        content = new TextArea {
+          editable = false
+          text <== SimulationModel.summary
+        }
+      }
+    )
+  }
+
+
   val chart = new BorderPane {
     left = addVBox
-    center = lineChart
+    center = tabpane
   }
+
 
   val rootNode = new StackPane {
     children = chart
   }
+
 
   stage = new PrimaryStage {
     title = "Portfolio Performance"
