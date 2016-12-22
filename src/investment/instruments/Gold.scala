@@ -1,8 +1,8 @@
-package investment
+package investment.instruments
 
 import java.time.YearMonth
 
-import scala.xml.Elem
+import investment.data.{USDRUB, XAUUSD}
 
 case object Gold extends Instrument {
   override def toString = "Gold"

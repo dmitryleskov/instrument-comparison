@@ -1,6 +1,8 @@
-package investment
+package investment.data
 
 import java.time.YearMonth
+
+import investment.util.CSVFile
 
 import scala.collection.mutable
 
@@ -17,7 +19,7 @@ object XAUUSD {
       val high  = values(5).toDouble
       val low   = values(6).toDouble
       val close = values(7).toDouble
-      println(ym, open, high, low, close)
+// asserts commented out cause they don't always hold (need to double check data)
 //      assert(high >= low)
 //      assert(high >= open)
 //      assert(high >= close)

@@ -1,4 +1,4 @@
-package investment
+package investment.instruments
 
 import java.time.YearMonth
 

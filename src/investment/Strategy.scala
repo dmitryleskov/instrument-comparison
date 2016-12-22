@@ -2,6 +2,8 @@ package investment
 
 import java.time.YearMonth
 
+import investment.instruments.Instrument
+
 abstract class Strategy (allocation: AssetAllocation) {
   def portfolioValue(ym: YearMonth, portfolio: Portfolio): Double = {
     (for(Position(instrument, amount) <- portfolio) yield instrument.price(ym) * amount).sum

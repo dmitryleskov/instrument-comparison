@@ -5,6 +5,7 @@ import javafx.beans.property.ReadOnlyStringProperty
 
 import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted, SalaryPercentage}
 import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}
+import investment.data.{AverageSalary, Inflation}
 
 import scalafx.beans.property.{IntegerProperty, ObjectProperty, ReadOnlyIntegerProperty, StringProperty}
 import scalafx.collections.ObservableBuffer

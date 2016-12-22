@@ -1,10 +1,13 @@
-package investment
+package investment.util
 
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
-import investment.SimulationModel.StrategyID.Split
+import investment.instruments._
 
-import scala.xml.{Node, NodeSeq}
+import scala.xml.NodeSeq
 
+/**
+  * Created by snowman on 22.12.2016.
+  */
 object Storage {
 
   trait Serializer[T] {
@@ -58,20 +61,20 @@ object Storage {
   //    implicit def iterableStorage[T](implicit elemStorage: Storage[T]) =
   //      new Storage[Iterable[T]] {
 
-  implicit object PortfolioSerializer extends Serializer[List[(Instrument, Int)]] {
-    def toXML(portfolio: List[(Instrument, Int)]): xml.Elem =
-      <portfolio>
-        {for ((instrument, weight) <- portfolio)
+  implicit object AllocationSerializer extends Serializer[List[(Instrument, Int)]] {
+    def toXML(allocation: List[(Instrument, Int)]): xml.Elem =
+      <allocation>
+        {for ((instrument, weight) <- allocation)
         yield <position>
           <instrument>{Storage.toXML(instrument)}</instrument>
           <weight>{weight}</weight>
         </position>}
-      </portfolio>
+      </allocation>
 
 
-    def fromXML(portfolioXML: NodeSeq): Option[List[(Instrument, Int)]] = {
-      portfolioXML match {
-        case <portfolio>{positions @ _*}</portfolio> =>
+    def fromXML(allocationXML: NodeSeq): Option[List[(Instrument, Int)]] = {
+      allocationXML match {
+        case <allocation>{positions @ _*}</allocation> =>
           Some((for { position @ <position>{_*}</position> <- positions
                       i <- Storage.fromXML[Instrument]((position \ "instrument" \ "_").head)
                       w = (position \ "weight").text.trim.toInt }

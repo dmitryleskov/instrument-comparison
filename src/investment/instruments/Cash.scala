@@ -1,6 +1,8 @@
-package investment
+package investment.instruments
 
 import java.time.YearMonth
+
+import investment.data.{EURRUB, USDRUB}
 
 case object CashRUB extends Instrument {
   override def toString = "RUB"

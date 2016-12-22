@@ -2,6 +2,8 @@ package investment
 
 import java.time.YearMonth
 
+import investment.instruments.Instrument
+
 abstract class AssetAllocation {
   // For the given month number (1-based), returns a map of instruments to their desired shares in the portfolio
   def allocation(n: Int): Map[Instrument, Double]

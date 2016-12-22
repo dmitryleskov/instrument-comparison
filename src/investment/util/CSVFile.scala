@@ -1,6 +1,7 @@
-package investment
+package investment.util
 
 import java.io.{FileInputStream, InputStreamReader}
+
 import au.com.bytecode.opencsv._
 
 class CSVFile(fileName: String,

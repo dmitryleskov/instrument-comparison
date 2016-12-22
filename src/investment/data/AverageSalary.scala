@@ -1,7 +1,10 @@
-package investment
+package investment.data
 
 import java.time.YearMonth
 import java.util.Locale
+import investment.instruments.Instrument
+import investment.util.CSVFile
+
 import scala.collection.mutable
 
 case object AverageSalary extends Instrument {

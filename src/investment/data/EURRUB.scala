@@ -1,6 +1,8 @@
-package investment
+package investment.data
 
 import java.time.YearMonth
+
+import investment.util.CSVFile
 
 import scala.collection.mutable
 

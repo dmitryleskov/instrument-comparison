@@ -2,6 +2,8 @@ package investment
 
 import javafx.scene.chart.PieChart
 
+import investment.instruments.Instrument
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scalafx.Includes._
@@ -13,7 +15,7 @@ import scalafx.scene.Node
 import scalafx.scene.control.{Button, ChoiceBox, Spinner}
 import scalafx.scene.layout.{BorderPane, GridPane, VBox}
 
-object PortfolioModel {
+object AllocationModel {
   sealed trait Change
   case class Insert(pos: Int, instrument: Instrument, newWeight: Int) extends Change
   case class Remove(pos: Int) extends Change
@@ -21,40 +23,42 @@ object PortfolioModel {
   case class ChangeWeight(pos: Int, newWeight: Int) extends Change
 }
 
-class PortfolioModel(init: List[(Instrument, Int)]) {
-  import PortfolioModel._
-  private val portfolio = init.to[mutable.Buffer]
+class AllocationModel(init: List[(Instrument, Int)]) {
+  import AllocationModel._
+  private val allocation = init.to[mutable.Buffer]
   var listeners: List[Change => Unit] = Nil
   def onChange(listener: Change => Unit) = listeners ::= listener
   private def notify(change: Change) = for (l <- listeners) l(change)
 
   private def indexOf(instrument: Instrument): Option[Int] = {
-    val index = portfolio indexWhere {case (i, _) => i == instrument}
+    val index = allocation indexWhere {case (i, _) => i == instrument}
     if (index >= 0) Some(index) else None
   }
 
-  def get = (for (p <- portfolio) yield (p._1, p._2.toDouble)).toList
-  def getWeights = portfolio.toList
-  def getInstruments = (for (p <- portfolio) yield p._1).toList
+  def get = (for (p <- allocation) yield (p._1, p._2.toDouble)).toList
+  def getWeights = allocation.toList
+  def getInstruments = (for (p <- allocation) yield p._1).toList
 
-  def length = portfolio.length
+  def length = allocation.length
 
   def append(instrument: Instrument, weight: Int = 1) =
     indexOf(instrument) match {
       case Some(_) => ()
       case None =>
-        portfolio.append((instrument, weight))
-        notify(Insert(portfolio.length - 1, instrument, weight))
+        allocation.append((instrument, weight))
+        notify(Insert(allocation.length - 1, instrument, weight))
     }
+
   def insert(pos: Int, instrument: Instrument, weight: Int = 1) = ???
 //    indexOf(instrument) match {
 //      case Some(_) => ()
-//      case None => portfolio :+= (instrument, weight)
+//      case None => allocation :+= (instrument, weight)
 //    }
+
   def update(instrument: Instrument, newWeight: Int) =
     indexOf(instrument) match {
       case Some(index) =>
-        portfolio.update(index, (instrument, newWeight))
+        allocation.update(index, (instrument, newWeight))
         notify(ChangeWeight(index, newWeight))
       case None => ()
     }
@@ -65,7 +69,7 @@ class PortfolioModel(init: List[(Instrument, Int)]) {
       case None =>
         indexOf(oldInstrument) match {
           case Some(index) =>
-            portfolio.update(index, (newInstrument, portfolio(index)._2))
+            allocation.update(index, (newInstrument, allocation(index)._2))
             notify(ChangeInstrument(index, newInstrument))
           case None => ()
         }
@@ -74,21 +78,20 @@ class PortfolioModel(init: List[(Instrument, Int)]) {
   def remove(instrument: Instrument) =
     indexOf(instrument) match {
       case Some(index) =>
-        portfolio.remove(index)
+        allocation.remove(index)
         notify(Remove(index))
       case None => ()
     }
-
 }
 
-object PortfolioEditor {
-  import PortfolioModel._
+object AllocationEditor {
+  import AllocationModel._
 
-  def init(model: PortfolioModel, done: () => Unit): Node = {
+  def init(model: AllocationModel, done: () => Unit): Node = {
 
     val chartData = ObservableBuffer[PieChart.Data]()
 
-    class PortfolioItemSelector {
+    class AllocationItemSelector {
       def this (_instrument: Instrument, _weight: Int) = {
         this
         println("Adding selector: " + _instrument + " " + _weight)
@@ -96,7 +99,7 @@ object PortfolioEditor {
         weight.valueFactory.value.value = _weight
       }
       val instrument = new ChoiceBox[Instrument] {
-        items = ObservableBuffer(Instruments.all)
+        items = ObservableBuffer(instruments.all)
         margin = Insets(5, 5, 5, 0)
 
         // This is a workaround for the following problem:
@@ -107,7 +110,7 @@ object PortfolioEditor {
 
         def refreshMyItems() = {
           val selected = model.getInstruments.toSet
-          val available = Instruments.all.filter(x => !(selected contains x))
+          val available = instruments.all.filter(x => !(selected contains x))
           println(available)
           val currentIndex = selectionModel().selectedIndex.value
           if (currentIndex >= 0) {
@@ -159,11 +162,11 @@ object PortfolioEditor {
       }
     }
 
-    val selectors = mutable.Buffer[PortfolioItemSelector]()
+    val selectors = mutable.Buffer[AllocationItemSelector]()
 
     def addEmptySelector(grid: GridPane): Unit = {
       println(model.length)
-      val selector = new PortfolioItemSelector
+      val selector = new AllocationItemSelector
       grid.add(selector.instrument, 0, model.length + 1)
       grid.add(selector.weight, 1, model.length + 1)
       grid.add(selector.delete, 1, model.length + 1)
@@ -171,7 +174,7 @@ object PortfolioEditor {
     }
 
     def addSelector(grid: GridPane, pos: Int, _instrument: Instrument, _weight: Int): Unit = {
-      val selector = new PortfolioItemSelector(_instrument, _weight)
+      val selector = new AllocationItemSelector(_instrument, _weight)
       grid.add(selector.instrument, 0, pos)
       grid.add(selector.weight, 1, pos)
       grid.add(selector.delete, 1, pos)

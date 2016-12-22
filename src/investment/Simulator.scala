@@ -2,6 +2,8 @@ package investment
 
 import java.time.YearMonth
 
+import investment.instruments.{Instrument, Stock}
+
 import scala.collection.mutable.ArrayBuffer
 
 case class Snapshot(serial: Int,

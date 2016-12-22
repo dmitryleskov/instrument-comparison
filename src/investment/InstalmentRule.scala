@@ -2,6 +2,8 @@ package investment
 
 import java.time.{Year, YearMonth}
 
+import investment.data.{AverageSalary, Inflation, USDRUB}
+
 abstract class InstalmentRule(val start: YearMonth) {
   /** Returns amount invested in rubles during n-th month, numbered from 1 */
   def instalment(n: Int): Double

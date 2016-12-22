@@ -1,7 +1,9 @@
-package investment
+package investment.instruments
 
 import java.io.FileNotFoundException
 import java.time.YearMonth
+
+import investment.util.CSVFile
 
 import scala.collection.mutable
 
