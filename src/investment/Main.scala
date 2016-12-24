@@ -49,52 +49,6 @@ object Main extends JFXApp {
     lineChart.getData.add(series2)
   }
 
-  val settings = try {
-    xml.XML.load(".portfolio")
-  } catch {
-    case ex: FileNotFoundException =>
-      println("Settings file not found")
-      xml.NodeSeq.Empty
-    case ex: SAXParseException =>
-      println("Settings file contents is not well-formed XML: " + ex.getMessage)
-      xml.NodeSeq.Empty
-  }
-  (settings \ "initialAmount").headOption.collect { case node =>
-    SimulationModel.initialAmount.value = node.text.toInt
-  }
-  (settings \ "initialInstalment").headOption.collect { case node =>
-    SimulationModel.initialInstalment.value = node.text.toInt
-  }
-  (settings \ "instalmentRuleID").headOption.collect { case node =>
-    Storage.fromXML[InstalmentRuleID](node) match {
-      case Some(irid) => println("Instalment Rule ID loaded: " + irid)
-        SimulationModel.instalmentRuleId.value = irid
-      case None => println("Instalment Rule ID not loaded")
-    }
-  }
-  (settings \ "strategyID").headOption.collect { case node =>
-    Storage.fromXML[StrategyID](node) match {
-      case Some(sid) => println("Strategy ID loaded: " + sid)
-        SimulationModel.strategyId.value = sid
-      case None => println("Strategy ID not loaded")
-    }
-  }
-  val allocation =
-    (settings \ "allocation").headOption.collect { case node: xml.NodeSeq =>
-      Storage.fromXML[List[(Instrument, Int)]](node) match {
-        case Some(allocation) => println("Settings file found, allocation loaded: " + allocation)
-          SimulationModel.allocationProperty.value = new FixedAllocation((for ((i, w) <- allocation) yield (i, w.toDouble)).toMap)
-          allocation
-        case None => println("Settings file found, but allocation not loaded"); List.empty
-      }
-    }
-
-  val allocationModel = new AllocationModel(allocation.getOrElse(List.empty))
-  val alllocationEditor = AllocationEditor.init(allocationModel, () => {
-    SimulationModel.allocationProperty.value = new FixedAllocation(allocationModel.get.toMap)
-    rootNode.children = chart
-  })
-
   private val _summary = StringProperty("")
   def summary: ReadOnlyStringProperty = _summary
 
@@ -118,8 +72,6 @@ object Main extends JFXApp {
         (stats.maxRelativeDrawdown0 * 100).formatted("%.1f%%")
   }
 
-  SimulationModel.statistics.onChange(updateChart)
-  SimulationModel.statistics.onChange(updateStats)
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
     new TextField {
@@ -241,6 +193,55 @@ object Main extends JFXApp {
       root = rootNode
     }
   }
+
+  SimulationModel.statistics.onChange(updateChart)
+  SimulationModel.statistics.onChange(updateStats)
+
+  val settings = try {
+    xml.XML.load(".portfolio")
+  } catch {
+    case ex: FileNotFoundException =>
+      println("Settings file not found")
+      xml.NodeSeq.Empty
+    case ex: SAXParseException =>
+      println("Settings file contents is not well-formed XML: " + ex.getMessage)
+      xml.NodeSeq.Empty
+  }
+  (settings \ "initialAmount").headOption.collect { case node =>
+    SimulationModel.initialAmount.value = node.text.toInt
+  }
+  (settings \ "initialInstalment").headOption.collect { case node =>
+    SimulationModel.initialInstalment.value = node.text.toInt
+  }
+  (settings \ "instalmentRuleID").headOption.collect { case node =>
+    Storage.fromXML[InstalmentRuleID](node) match {
+      case Some(irid) => println("Instalment Rule ID loaded: " + irid)
+        SimulationModel.instalmentRuleId.value = irid
+      case None => println("Instalment Rule ID not loaded")
+    }
+  }
+  (settings \ "strategyID").headOption.collect { case node =>
+    Storage.fromXML[StrategyID](node) match {
+      case Some(sid) => println("Strategy ID loaded: " + sid)
+        SimulationModel.strategyId.value = sid
+      case None => println("Strategy ID not loaded")
+    }
+  }
+  val allocation =
+    (settings \ "allocation").headOption.collect { case node: xml.NodeSeq =>
+      Storage.fromXML[List[(Instrument, Int)]](node) match {
+        case Some(allocation) => println("Settings file found, allocation loaded: " + allocation)
+          SimulationModel.allocationProperty.value = new FixedAllocation((for ((i, w) <- allocation) yield (i, w.toDouble)).toMap)
+          allocation
+        case None => println("Settings file found, but allocation not loaded"); List.empty
+      }
+    }
+
+  val allocationModel = new AllocationModel(allocation.getOrElse(List.empty))
+  val alllocationEditor = AllocationEditor.init(allocationModel, () => {
+    SimulationModel.allocationProperty.value = new FixedAllocation(allocationModel.get.toMap)
+    rootNode.children = chart
+  })
 
   override def stopApp = {
     val x = <settings>
