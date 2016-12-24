@@ -6,27 +6,43 @@ import java.time.temporal.ChronoUnit
 import investment.data.{AverageSalary, Inflation}
 
 class Statistics(val simulator: Simulator) {
-  private def maxAbsoluteDrawdown(valuations: List[(YearMonth, Double)], baseline: List[(YearMonth, Double)]) =
-    ((valuations zip baseline) map {
-      case ((ymv, v), (ymb, b)) if ymv == ymb => v / b
-    }).foldLeft(1.0)(_ min _) - 1.0
+  sealed case class Drawdown(date: YearMonth, amount: Double, ratio: Double) {
+    def maxByAmount(other: Drawdown) = if (other.amount > amount) other else this
+    def maxByRatio(other: Drawdown) = if (other.ratio > ratio) other else this
+    override def toString = if (amount > 0) f"$amount%.2f ${ratio * 100}%.1f%% $date" else "0.0%"
+  }
+  case object Drawdown {
+    val zero = Drawdown(start, 0.0, 0.0)
+  }
 
-  private def maxRelativeDrawdown(valuations: List[(YearMonth, Double)]) =
-    (valuations drop 1) .foldLeft (valuations.head._2, valuations.head._2, 0.0) {
-      case ((lastMax, lastMin, maxDrawdown), (ym, v)) =>
-        if (v > lastMax) {
-          (v, v, maxDrawdown.min((lastMin - lastMax) / lastMax))
-        } else {
-          (lastMax, lastMin min v, maxDrawdown)
-        }
+  /** @return Maximum difference between investment-to-date and current portfolio value */
+  private def absoluteDrawdown(valuations: List[(YearMonth, Double)], baseline: List[(YearMonth, Double)]) =
+    ((valuations zip baseline) map {
+      case ((ymv, v), (ymb, b)) if ymv == ymb => Drawdown(ymv, b - v, (b - v) / b)
+    }).foldLeft(Drawdown.zero)(_ maxByAmount _)
+
+  private def drawdown(valuations: List[(YearMonth, Double)], max: (Drawdown, Drawdown) => Drawdown) =
+    (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, Drawdown.zero) {
+      case ((lastMax, lastMin, res), (ym, v)) =>
+        if (v > lastMax)
+          (v, v, max(res, Drawdown(ym, lastMax - lastMin, (lastMax - lastMin) / lastMax)))
+        else
+          (lastMax, lastMin min v, res)
     }._3
+
+  /** @return Maximum difference between a peak and the subsequent trough */
+  private def maximumDrawdown(valuations: List[(YearMonth, Double)]) =
+    drawdown(valuations, _ maxByAmount _)
+
+  /** @return Maximum ratio of the difference between a peak and the subsequent trough over the peak */
+  private def relativeDrawdown(valuations: List[(YearMonth, Double)]) =
+    drawdown(valuations, _ maxByRatio _)
 
   val start = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.startDate)).max
   val end = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.endDate)).min
   val duration = start.until(end, ChronoUnit.MONTHS).toInt + 1
 
   private val snapshots = simulator.simulate(start, duration)
-  println(snapshots take 2)
   val instalments = snapshots map (s => (s.ym, s.instalment))
   val aggregateInvestment = instalments
     .foldLeft (List((start.minusMonths(1), simulator.initialAmount.toDouble)))
@@ -41,12 +57,10 @@ class Statistics(val simulator: Simulator) {
   val portfolioValuations = snapshots map (s => (s.ym, s.value))
   println(portfolioValuations)
 
-  val maxAbsoluteDrawdown0 = maxAbsoluteDrawdown(portfolioValuations, aggregateInvestment)
-  val maxAbsoluteDrawdown1 = maxAbsoluteDrawdown(portfolioValuations, inflation)
-  val maxRelativeDrawdown0 = maxRelativeDrawdown(portfolioValuations)
-
-  println((maxAbsoluteDrawdown0 * 100.0).formatted("%.1f%%"))
-  println((maxRelativeDrawdown0 * 100.0).formatted("%.1f%%"))
+  val AbsoluteDrawdown0 = absoluteDrawdown(portfolioValuations, aggregateInvestment)
+  val AbsoluteDrawdown1 = absoluteDrawdown(portfolioValuations, inflation)
+  val MaximumDrawdown0 = maximumDrawdown(portfolioValuations)
+  val RelativeDrawdown0 = relativeDrawdown(portfolioValuations)
 
   val totalIncome = snapshots map (_.income) sum
   val last12MonthsIncome = (snapshots.reverse take 12 map (_.income)) sum

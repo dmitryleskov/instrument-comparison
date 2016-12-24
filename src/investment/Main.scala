@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
+
 package investment
 
 import java.io.FileNotFoundException
@@ -56,22 +60,22 @@ object Main extends JFXApp {
     val stats = SimulationModel.statistics.value
     _summary.value =
       "Period: " + stats.start + " - " + stats.end + " (" + stats.duration + " months)\n" +
-      "Last instalment: " + stats.instalments.last._2.formatted("%.2f") + "\n" +
+        "Last instalment: " + stats.instalments.last._2.formatted("%.2f") + "\n" +
         //        snapshots.last.portfolio + "\n" +
-        //        "Portfolio Value: " + snapshots.last.value.formatted("%.2f") + "\n" +
+        "Portfolio Value: " + stats.portfolioValuations.last._2.formatted("%.2f") + "\n" +
         "Total Investment: " + stats.totalInvestment.formatted("%.2f") + "\n" +
         "Total Income: " + stats.totalIncome.formatted("%.2f") + "\n" +
+        "Capital Gain: " + (stats.portfolioValuations.last._2 - stats.totalInvestment - stats.totalIncome).formatted("%.2f") + "\n" +
         "Last 12M Income: " + stats.last12MonthsIncome.formatted("%.2f") + "\n" +
-        //        "Inflation-adjusted Return: " +
-        //        ((snapshots.last.value - inflationResults.last.value) / inflationResults.last.value * 100).formatted("%.1f%%") + "\n" +
-        "Max absolute drawdown: " +
-        (stats.maxAbsoluteDrawdown0 * 100).formatted("%.1f%%") + "\n" +
-        "Max absolute drawdown (inflation adjusted): " +
-        (stats.maxAbsoluteDrawdown1 * 100).formatted("%.1f%%") + "\n" +
-        "Max relative drawdown: " +
-        (stats.maxRelativeDrawdown0 * 100).formatted("%.1f%%")
+        "Return: " +
+        ((stats.portfolioValuations.last._2 - stats.totalInvestment) / stats.totalInvestment * 100).formatted("%.1f%%") + "\n" +
+        "Inflation-adjusted Return: " +
+        ((stats.portfolioValuations.last._2 - stats.inflation.last._2) / stats.inflation.last._2 * 100).formatted("%.1f%%") + "\n" +
+        "Absolute drawdown: " + stats.AbsoluteDrawdown0 + "\n" +
+        "Absolute drawdown (inflation adjusted): " + stats.AbsoluteDrawdown1 + "\n" +
+        "Maximum drawdown: " + stats.MaximumDrawdown0 + "\n" +
+        "Relative drawdown: " + stats.RelativeDrawdown0
   }
-
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
     new TextField {
