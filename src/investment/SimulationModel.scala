@@ -1,24 +1,21 @@
 package investment
 
 import java.time.temporal.ChronoUnit
-import javafx.beans.property.ReadOnlyStringProperty
 
 import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted, SalaryPercentage}
 import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}
 import investment.data.{AverageSalary, Inflation}
 
-import scalafx.beans.property.{IntegerProperty, ObjectProperty, ReadOnlyIntegerProperty, StringProperty}
-import scalafx.collections.ObservableBuffer
+import scalafx.beans.property.{IntegerProperty, ObjectProperty, ReadOnlyIntegerProperty, ReadOnlyObjectProperty}
 
 object SimulationModel {
   private val _minYear = IntegerProperty(2006)
   def minYear: ReadOnlyIntegerProperty = _minYear
   private val _maxYear = IntegerProperty(2016)
   def maxYear: ReadOnlyIntegerProperty = _maxYear
-  private val _summary = StringProperty("")
-  def summary: ReadOnlyStringProperty = _summary
-  val snapshots = new ObservableBuffer[Snapshot]()
-  val inflation = new ObservableBuffer[(Snapshot)]()
+
+  private val _statistics = ObjectProperty[Statistics](this, "statistics")
+  val statistics: ReadOnlyObjectProperty[Statistics] = _statistics
 
   sealed abstract class StrategyID
   object StrategyID {
@@ -70,18 +67,17 @@ object SimulationModel {
     val initialAmount = SimulationModel.initialAmount.value
     val allocation = allocationProperty.value
     if (allocation == null || strategyId.value == null || instalmentRuleId.value == null) {
-      snapshots.clear()
+      _statistics.value = null
     } else {
-      val start = (((Inflation, 1.0) :: (AverageSalary, 1.0) :: allocation.allocation(1).toList) map (_._1.startDate)).max
-      val end = (((Inflation, 1.0) :: (AverageSalary, 1.0) :: allocation.allocation(1).toList) map (_._1.endDate)).min
-      println(Inflation.endDate)
+      val start = ((Inflation :: AverageSalary :: allocation.instruments) map (_.startDate)).max
+      val end = ((Inflation :: AverageSalary :: allocation.instruments) map (_.endDate)).min
       println(start, end)
+
       val strategy = strategyId.value match {
         case Split => new Split(allocation)
         case BalanceGradually => new BalanceGradually(allocation)
         case RebalanceMonthly => new RebalanceMonthly(allocation)
       }
-
       val instalmentRule = instalmentRuleId.value match {
         case FixedAmount => new FixedAmount(start, initialInstalment.value)
         case AnnualIncrease => new AnnualIncrease(start, initialInstalment.value, 1.05)
@@ -90,44 +86,15 @@ object SimulationModel {
         //case ew FixedUSDAmount(start, 10.0)
       }
 
-      val sim = new Simulator(
+      val simulator = new Simulator(
         initialAmount,
         allocation,
         instalmentRule,
         strategy)
-
-      val inflationAllocation = new FixedAllocation(Map(Inflation -> 1.0))
-      val inflationSim = new Simulator(
-        initialAmount,
-        inflationAllocation,
-        instalmentRule,
-        new Split(inflationAllocation))
-
-      val duration = start.until(end, ChronoUnit.MONTHS).toInt + 1
-
-      val results = sim.simulate(start, duration)
-      snapshots.setAll(results: _*)
-      println(snapshots take 2)
-
-      val stats = new Statistics(initialAmount, results)
-
-      val inflationResults = inflationSim.simulate(start, duration)
-      inflation.setAll(inflationResults: _*)
-
-      _minYear.value = snapshots.head.ym.getYear
-      _maxYear.value = snapshots.last.ym.getYear
-      _summary.value =
-        "Last month: " + snapshots.last.ym + "\n" +
-        "Last instalment: " + snapshots.last.instalment.formatted("%.2f") + "\n" +
-        snapshots.last.portfolio + "\n" +
-        "Portfolio Value: " + snapshots.last.value.formatted("%.2f") + "\n" +
-        "Total Investment: " + stats.totalInvestment.formatted("%.2f") + "\n" +
-        "Total Income: " + stats.totalIncome.formatted("%.2f") + "\n" +
-        "Last 12M Income: " + stats.last12MonthsIncome.formatted("%.2f") + "\n" +
-        "Inflation-adjusted Return: " +
-        ((snapshots.last.value - inflationResults.last.value) / inflationResults.last.value * 100).formatted("%.1f%%") + "\n" +
-        "Max absolute drawdown: " +
-        (stats.maxAbsoluteDrawdown * 100).formatted("%.1f%%")
+      val stats  = new Statistics(simulator)
+      _statistics.value = stats
+      _minYear.value = start.getYear
+      _maxYear.value = end.getYear
     }
   }
 }

@@ -8,7 +8,7 @@ import scala.collection.mutable.ArrayBuffer
 
 case class Snapshot(serial: Int,
                     ym: YearMonth,
-                    income: Double,         /* Total amount of dividends, coupons, interest, etc.  received*/
+                    income: Double,         /* Total amount of dividends, coupons, interest, etc.  received in this month */
                     instalment: Double,
                     portfolio: Portfolio,
                     value: Double)
@@ -28,7 +28,7 @@ class Simulator(val initialAmount: Int,
     * @return A `Seq` of `Snapshots`
     */
   def simulate(start: YearMonth, length: Int): List[Snapshot] = {
-    val templatePortfolio: Portfolio = for (instrument <- allocation.allocation(1).keys.toList) yield Position(instrument, 0)
+    val templatePortfolio: Portfolio = allocation.instruments map (Position(_, 0))
     var portfolio = new Split(allocation).invest(1, start, templatePortfolio, initialAmount)
     val snapshots = ArrayBuffer[Snapshot]()
     var month = 1
@@ -38,6 +38,7 @@ class Simulator(val initialAmount: Int,
                           (date, factor) <- stock.splits)
                      yield date -> (stock, factor)
                     ) groupBy (_._1)
+
 
     while (month <= length) {
       cur = start.plusMonths(month - 1)

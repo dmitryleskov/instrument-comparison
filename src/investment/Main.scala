@@ -1,6 +1,7 @@
 package investment
 
 import java.io.FileNotFoundException
+import java.time.temporal.ChronoUnit.MONTHS
 
 import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
@@ -12,7 +13,7 @@ import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.beans.binding.Bindings
-import scalafx.beans.property.IntegerProperty
+import scalafx.beans.property.{IntegerProperty, ReadOnlyStringProperty, StringProperty}
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
 import scalafx.geometry.Insets
@@ -25,23 +26,21 @@ import scalafx.util.StringConverter
 object Main extends JFXApp {
 
   def updateChart: Unit = {
+    val stats = SimulationModel.statistics.value
+
     // Shift serial numbers (1-based) so that Januaries fall on multiples of 12
-    val offset = SimulationModel.snapshots(0).ym.getMonthValue - 2
+    val offset = stats.start.getMonthValue - 2
 
-    // Investment running total
-    val investmentRT =
-      SimulationModel.snapshots
-        .map(s => (s.serial, s.instalment))
-        .scanLeft((0, SimulationModel.initialAmount.value.toDouble))({case ((_, prev), (month, amount)) => (month, prev + amount)})
-        .tail
-
-    val data0 = ObservableBuffer(SimulationModel.inflation map { case s: Snapshot => XYChart.Data[Number, Number](s.serial + offset, s.value) })
+    val data0 = ObservableBuffer(stats.inflation map {
+      case (ym, v) => XYChart.Data[Number, Number](stats.start.until(ym, MONTHS) + 1 + offset, v) })
     val series0 = XYChart.Series[Number, Number]("Inflation", data0)
 
-    val data1 = ObservableBuffer(investmentRT map { case (x, y) => XYChart.Data[Number, Number](x + offset, y) })
+    val data1 = ObservableBuffer(stats.aggregateInvestment map {
+      case (ym, v) => XYChart.Data[Number, Number](stats.start.until(ym, MONTHS) + 1 + offset, v) })
     val series1 = XYChart.Series[Number, Number]("Investment", data1)
 
-    val data2 = ObservableBuffer(SimulationModel.snapshots map { case s: Snapshot => XYChart.Data[Number, Number](s.serial + offset, s.value) })
+    val data2 = ObservableBuffer(stats.portfolioValuations map {
+      case (ym, v) => XYChart.Data[Number, Number](stats.start.until(ym, MONTHS) +1 + offset, v) })
     val series2 = XYChart.Series[Number, Number]("Portfolio", data2)
 
     lineChart.getData.clear()
@@ -96,8 +95,31 @@ object Main extends JFXApp {
     rootNode.children = chart
   })
 
-  SimulationModel.snapshots.onChange(updateChart)
-  SimulationModel.inflation.onChange(updateChart)
+  private val _summary = StringProperty("")
+  def summary: ReadOnlyStringProperty = _summary
+
+  def updateStats: Unit = {
+    val stats = SimulationModel.statistics.value
+    _summary.value =
+      "Period: " + stats.start + " - " + stats.end + " (" + stats.duration + " months)\n" +
+      "Last instalment: " + stats.instalments.last._2.formatted("%.2f") + "\n" +
+        //        snapshots.last.portfolio + "\n" +
+        //        "Portfolio Value: " + snapshots.last.value.formatted("%.2f") + "\n" +
+        "Total Investment: " + stats.totalInvestment.formatted("%.2f") + "\n" +
+        "Total Income: " + stats.totalIncome.formatted("%.2f") + "\n" +
+        "Last 12M Income: " + stats.last12MonthsIncome.formatted("%.2f") + "\n" +
+        //        "Inflation-adjusted Return: " +
+        //        ((snapshots.last.value - inflationResults.last.value) / inflationResults.last.value * 100).formatted("%.1f%%") + "\n" +
+        "Max absolute drawdown: " +
+        (stats.maxAbsoluteDrawdown0 * 100).formatted("%.1f%%") + "\n" +
+        "Max absolute drawdown (inflation adjusted): " +
+        (stats.maxAbsoluteDrawdown1 * 100).formatted("%.1f%%") + "\n" +
+        "Max relative drawdown: " +
+        (stats.maxRelativeDrawdown0 * 100).formatted("%.1f%%")
+  }
+
+  SimulationModel.statistics.onChange(updateChart)
+  SimulationModel.statistics.onChange(updateStats)
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
     new TextField {
@@ -169,8 +191,8 @@ object Main extends JFXApp {
     tickLabelFormatter = new StringConverter[Number] {
       override def fromString(s: String) = 0
       override def toString(n: Number) = {
-        if (!SimulationModel.snapshots.isEmpty)
-          SimulationModel.snapshots(0).ym.plusMonths(n.intValue).getYear.toString
+        if(SimulationModel.statistics.value != null)
+          SimulationModel.statistics.value.start.plusMonths(n.intValue).getYear.toString
         else ""
       }
     }
@@ -197,18 +219,16 @@ object Main extends JFXApp {
         closable = false
         content = new TextArea {
           editable = false
-          text <== SimulationModel.summary
+          text <== summary
         }
       }
     )
   }
 
-
   val chart = new BorderPane {
     left = addVBox
     center = tabpane
   }
-
 
   val rootNode = new StackPane {
     children = chart

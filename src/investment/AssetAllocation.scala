@@ -5,6 +5,8 @@ import java.time.YearMonth
 import investment.instruments.Instrument
 
 abstract class AssetAllocation {
+  /** @return A list of all instruments used throughout the investment cycle */
+  def instruments: List[Instrument]
   // For the given month number (1-based), returns a map of instruments to their desired shares in the portfolio
   def allocation(n: Int): Map[Instrument, Double]
 }
@@ -26,7 +28,8 @@ object AssetAllocation {
 }
 
 class FixedAllocation (val initialAllocation: Map[Instrument, Double]) extends AssetAllocation {
-  lazy val normalized = AssetAllocation.normalize(initialAllocation)
+  private lazy val normalized = AssetAllocation.normalize(initialAllocation)
   override def allocation(n: Int): Map[Instrument, Double] = normalized
+  override def instruments: List[Instrument] = normalized.keys.toList
   override def toString = normalized.toString()
 }
