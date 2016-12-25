@@ -2,7 +2,7 @@ package investment
 
 import java.time.{Year, YearMonth}
 
-import investment.data.{AverageSalary, Inflation, USDRUB}
+import investment.data.{AverageSalary, Inflation, ExchangeRates}
 
 abstract class InstalmentRule(val start: YearMonth) {
   /** Returns amount invested in rubles during n-th month, numbered from 1 */
@@ -14,9 +14,9 @@ class FixedAmount(override val start: YearMonth, val amount: Double) extends Ins
   override def instalment(n: Int): Double = amount
 }
 
-class FixedUSDAmount(override val start: YearMonth, val usdAmount: Double) extends InstalmentRule(start){
-  override def instalment(n: Int): Double = usdAmount * USDRUB.mid(start.plusMonths(n-1))
-}
+//class FixedUSDAmount(override val start: YearMonth, val usdAmount: Double) extends InstalmentRule(start){
+//  override def instalment(n: Int): Double = usdAmount * Currency.mid(start.plusMonths(n-1))
+//}
 
 /** Increase the invested amount by the given percentage each year */
 class AnnualIncrease (override val start: YearMonth, val initialAmount: Double, annualIncrease: Double) extends InstalmentRule(start) {

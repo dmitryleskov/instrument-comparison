@@ -8,7 +8,7 @@ package object instruments {
   ) yield Stock(ticker)
   //  val stocks = for (ticker <- Seq("FXRL", "FXRB", "FXRU", "FXGD")
   //               ) yield Stock(ticker)
-  val depositUSD = new DepositUSD(0.03)
+  val depositUSD = Deposit("USD", 0.03)
   val all: Seq[Instrument] =
-    stocks.asInstanceOf[Seq[Instrument]] :+ CashRUB :+ CashUSD :+ CashEUR :+ DepositRUB :+ depositUSD :+ Gold :+ Inflation
+    stocks.asInstanceOf[Seq[Instrument]] :+ CashRUB :+ Cash("USD") :+ Cash("EUR") :+ DepositRUB :+ depositUSD :+ Gold :+ Inflation
 }

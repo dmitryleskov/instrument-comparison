@@ -1,6 +1,8 @@
-package investment
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
 
-import java.time.temporal.ChronoUnit
+package investment
 
 import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted, SalaryPercentage}
 import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}

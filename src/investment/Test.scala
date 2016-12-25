@@ -16,9 +16,9 @@ object Test extends App {
   val sberp = Stock("SBERP")
   val sngsp = Stock("SNGSP")
   val vtbr = Stock("VTBR")
-  val usd = CashUSD
+  val usd = Cash("USD")
   val deposit = DepositRUB
-  val depositUSD = new DepositUSD(0.03)
+  val depositUSD = new Deposit("USD", 0.03)
 
   val allocationDescriptors: List[List[(Instrument, Double)]] =
     List(

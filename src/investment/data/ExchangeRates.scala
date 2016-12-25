@@ -6,10 +6,10 @@ import investment.util.CSVFile
 
 import scala.collection.mutable
 
-object USDRUB {
-  val (highs, lows) = {
+class ExchangeRates(currency: String) {
+  private val (highs, lows) = {
     val dateFormat = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")
-    val csv = new CSVFile("data/" + "USDCB.csv")
+    val csv = new CSVFile(s"data/${currency}CB.csv")
     val highs = mutable.HashMap[YearMonth, Double]()
     val lows = mutable.HashMap[YearMonth, Double]()
     for (values  <- csv) {

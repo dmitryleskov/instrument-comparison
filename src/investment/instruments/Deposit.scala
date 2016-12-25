@@ -2,13 +2,13 @@ package investment.instruments
 
 import java.time.YearMonth
 import java.util.Locale
-import investment.data.USDRUB
+import investment.data.{EURRUB, ExchangeRates}
 import investment.util.CSVFile
 
 import scala.collection.mutable
 
 case object DepositRUB extends Instrument {
-  override def toString = "DepositRUB"
+  override def toString = "Deposit RUB"
 
   /** The price in rubles of purchasing one unit of the given instrument in the given month. */
   override def price(ym: YearMonth): Double = 1.0
@@ -32,18 +32,20 @@ case object DepositRUB extends Instrument {
   }
 }
 
-case class DepositUSD(annualInterest: Double) extends Instrument {
-  override def toString = "DepositUSD %.2f%%".format(annualInterest * 100)
+case class Deposit(currency: String, annualInterest: Double) extends Instrument {
+  override val toString = f"Deposit $currency%s ${annualInterest * 100}%.2f%%"
 
-  override lazy val startDate = USDRUB.startDate.plusMonths(1)
-  override lazy val endDate = USDRUB.endDate
+  private val rates = new ExchangeRates(currency)
+
+  override lazy val startDate = rates.startDate.plusMonths(1)
+  override lazy val endDate = rates.endDate
 
   /** The price in rubles of purchasing one unit of the given instrument in the given month.
     *
     * @param ym
     * @return the midpoint CBR rate for the month
     */
-  override def price(ym: YearMonth): Double = USDRUB.mid(ym)
+  override def price(ym: YearMonth): Double = rates.mid(ym)
 
   /** Yield (interest, dividends, etc) of the given instrument in the given month in percents to its value */
   override def yieldPercentage(ym: YearMonth): Double = math.pow(1.0 + annualInterest, 1.0 / 12.0) - 1.0

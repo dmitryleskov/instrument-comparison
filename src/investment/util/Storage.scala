@@ -41,20 +41,22 @@ object Storage {
       i match {
         case s: Stock => <stock>{s.ticker}</stock>
         case DepositRUB => <depositRUB/>
-        case du: DepositUSD => <depositUSD>{du.annualInterest}</depositUSD>
+        case Deposit("USD", annualInterest) => <depositUSD>{annualInterest}</depositUSD>
         case Gold => <gold/>
-        case CashEUR => <cashEUR/>
-        case CashUSD => <cashUSD/>
+        case CashRUB => <cashRUB/>
+        case Cash("EUR") => <cashEUR/>
+        case Cash("USD") => <cashUSD/>
       }
 
     def fromXML(x: xml.NodeSeq): Option[Instrument] =
       x match {
         case <stock>{ticker}</stock> => Some(Stock(ticker.text.trim))
         case <depositRUB/> => Some(DepositRUB)
-        case <depositUSD>{annualInterest}</depositUSD> => Some(DepositUSD(annualInterest.text.toDouble))
+        case <depositUSD>{annualInterest}</depositUSD> => Some(Deposit("USD", annualInterest.text.toDouble))
         case <gold/> => Some(Gold)
-        case <cashEUR/> => Some(CashEUR)
-        case <cashUSD/> => Some(CashUSD)
+        case <cashRUB/> => Some(CashRUB)
+        case <cashEUR/> => Some(Cash("EUR"))
+        case <cashUSD/> => Some(Cash("USD"))
       }
   }
 
