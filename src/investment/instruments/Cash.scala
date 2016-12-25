@@ -1,32 +1,44 @@
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
+
 package investment.instruments
 
 import java.time.YearMonth
 
 import investment.data.ExchangeRates
 
-case object CashRUB extends Instrument {
-  override def toString = "Cash RUB"
+import scala.collection.mutable
 
-  override val endDate = YearMonth.now
+sealed abstract class Cash extends Instrument
 
-  /** The price in rubles of purchasing one unit of the given instrument in the given month. */
-  override def price(ym: YearMonth): Double = 1.0
+object Cash {
+  private case object RubleCash extends Cash {
+    override def toString = "Cash RUB"
+    override val endDate = YearMonth.now
+    override def price(ym: YearMonth): Double = 1.0
+    override def yieldPercentage(ym: YearMonth): Double = 0.0
+  }
 
-  /** Yield (interest, dividends, etc) of the given instrument in the given month in percents to the price */
-  override def yieldPercentage(ym: YearMonth): Double = 0.0
-}
+  private case class ForeignCash(currency: String) extends Cash {
+    override val toString = s"Cash $currency"
+    private val rates = ExchangeRates(currency)
+    override val startDate = rates.startDate
+    override val endDate = rates.endDate
+    override def price(ym: YearMonth): Double = rates.mid(ym)
+    override def yieldPercentage(ym: YearMonth): Double = 0.0
+  }
 
-case class Cash(currency: String) extends Instrument {
-  override val toString = s"Cash $currency"
+  /** Ruble stands out as being not a foreign currency, hence the need to prepopulate the cache */
+  private val cache = mutable.Map[String, Cash]("RUB" -> RubleCash)
 
-  private val rates = new ExchangeRates(currency)
+  /** @return Cash instance representing the given currency */
+  def apply(currency: String): Cash = cache.getOrElseUpdate(currency, new ForeignCash(currency))
 
-  override val startDate = rates.startDate
-  override val endDate = rates.endDate
-
-  /** The price in rubles of purchasing one unit of the given instrument in the given month. */
-  override def price(ym: YearMonth): Double = rates.mid(ym)
-
-  /** Yield (interest, dividends, etc) of the given instrument in the given month in percents to the price */
-  override def yieldPercentage(ym: YearMonth): Double = 0.0
+  /** @return String identifying the currency of the given Cash instance */
+  def unapply(cash: Cash): Option[String] =
+  cash match {
+    case RubleCash => Some("RUB")
+    case ForeignCash(currency) => Some(currency)
+  }
 }

@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
+
 package investment.data
 
 import java.time.YearMonth
@@ -6,10 +10,10 @@ import investment.util.CSVFile
 
 import scala.collection.mutable
 
-object XAUUSD {
+final class CommodityQuotes(ticker: String) {
   val (highs, lows) = {
     val dateFormat = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")
-    val csv = new CSVFile("data/" + "XAUUSD.csv")
+    val csv = new CSVFile(s"data/$ticker.csv")
     val highs = mutable.HashMap[YearMonth, Double]()
     val lows = mutable.HashMap[YearMonth, Double]()
 

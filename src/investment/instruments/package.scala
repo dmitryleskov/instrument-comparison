@@ -1,14 +1,22 @@
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
+
 package investment
 
 import investment.data.Inflation
 
 package object instruments {
-  val stocks = for (ticker <- Seq("ALRS", "GAZP", "LKOH", "NVTK", "GMKN", "MGNT", "MOEX", "MTSS",
+  val commodities: Seq[Instrument] = for (ticker <- Seq("XAUUSD", "XPTUSD", "XAGUSD", "UKOIL")) yield Commodity(ticker)
+  val stocks: Seq[Instrument] = for (ticker <- Seq("ALRS", "GAZP", "LKOH", "NVTK", "GMKN", "MGNT", "MOEX", "MTSS",
     "ROSN", "SBER", "SBERP", "SNGSP", "VTBR")
   ) yield Stock(ticker)
   //  val stocks = for (ticker <- Seq("FXRL", "FXRB", "FXRU", "FXGD")
   //               ) yield Stock(ticker)
-  val depositUSD = Deposit("USD", 0.03)
   val all: Seq[Instrument] =
-    stocks.asInstanceOf[Seq[Instrument]] :+ CashRUB :+ Cash("USD") :+ Cash("EUR") :+ DepositRUB :+ depositUSD :+ Gold :+ Inflation
+    stocks ++
+    commodities :+
+    Cash("RUB") :+ Cash("USD") :+ Cash("EUR") :+
+    DepositRUB :+ Deposit("USD", 0.03) :+ Deposit("EUR", 0.02) :+
+    Inflation
 }

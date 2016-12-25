@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
+
 package investment.util
 
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
@@ -42,21 +46,20 @@ object Storage {
         case s: Stock => <stock>{s.ticker}</stock>
         case DepositRUB => <depositRUB/>
         case Deposit("USD", annualInterest) => <depositUSD>{annualInterest}</depositUSD>
-        case Gold => <gold/>
-        case CashRUB => <cashRUB/>
-        case Cash("EUR") => <cashEUR/>
-        case Cash("USD") => <cashUSD/>
+        case Deposit("EUR", annualInterest) => <depositEUR>{annualInterest}</depositEUR>
+        case Commodity(ticker) => <commodity>{ticker}</commodity>
+        case Cash(currency) => <cash>{currency}</cash>
       }
 
     def fromXML(x: xml.NodeSeq): Option[Instrument] =
       x match {
         case <stock>{ticker}</stock> => Some(Stock(ticker.text.trim))
         case <depositRUB/> => Some(DepositRUB)
-        case <depositUSD>{annualInterest}</depositUSD> => Some(Deposit("USD", annualInterest.text.toDouble))
-        case <gold/> => Some(Gold)
-        case <cashRUB/> => Some(CashRUB)
-        case <cashEUR/> => Some(Cash("EUR"))
-        case <cashUSD/> => Some(Cash("USD"))
+        case <depositUSD>{annualInterest}</depositUSD> => Some(Deposit("USD", annualInterest.text.trim.toDouble))
+        case <depositEUR>{annualInterest}</depositEUR> => Some(Deposit("EUR", annualInterest.text.trim.toDouble))
+        case <commodity>{ticker}</commodity> => Some(Commodity(ticker.text.trim))
+        case <cash>{currency}</cash> => Some(Cash(currency.text.trim))
+        case _ => None
       }
   }
 

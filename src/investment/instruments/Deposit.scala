@@ -1,7 +1,12 @@
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
+
 package investment.instruments
 
 import java.time.YearMonth
 import java.util.Locale
+
 import investment.data.ExchangeRates
 import investment.util.CSVFile
 
@@ -35,7 +40,7 @@ case object DepositRUB extends Instrument {
 case class Deposit(currency: String, annualInterest: Double) extends Instrument {
   override val toString = f"Deposit $currency%s ${annualInterest * 100}%.2f%%"
 
-  private val rates = new ExchangeRates(currency)
+  private val rates = ExchangeRates(currency)
 
   override lazy val startDate = rates.startDate.plusMonths(1)
   override lazy val endDate = rates.endDate

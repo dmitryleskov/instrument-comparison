@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
+
 package investment.data
 
 import java.time.YearMonth
@@ -6,7 +10,7 @@ import investment.util.CSVFile
 
 import scala.collection.mutable
 
-class ExchangeRates(currency: String) {
+final class ExchangeRates(currency: String) {
   private val (highs, lows) = {
     val dateFormat = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")
     val csv = new CSVFile(s"data/${currency}CB.csv")
@@ -29,4 +33,9 @@ class ExchangeRates(currency: String) {
   def mid(ym: YearMonth) = (highs(ym) + lows(ym)) / 2.0
   val startDate = highs.keys.min
   val endDate = highs.keys.max
+}
+
+object ExchangeRates {
+  private val cache = mutable.Map[String, ExchangeRates]()
+  def apply(currency: String) = cache.getOrElseUpdate(currency, new ExchangeRates(currency))
 }
