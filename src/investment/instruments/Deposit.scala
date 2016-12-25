@@ -2,7 +2,7 @@ package investment.instruments
 
 import java.time.YearMonth
 import java.util.Locale
-import investment.data.{EURRUB, ExchangeRates}
+import investment.data.ExchangeRates
 import investment.util.CSVFile
 
 import scala.collection.mutable

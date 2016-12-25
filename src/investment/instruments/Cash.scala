@@ -2,7 +2,7 @@ package investment.instruments
 
 import java.time.YearMonth
 
-import investment.data.{EURRUB, ExchangeRates}
+import investment.data.ExchangeRates
 
 case object CashRUB extends Instrument {
   override def toString = "Cash RUB"
