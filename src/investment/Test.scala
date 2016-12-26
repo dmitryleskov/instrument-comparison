@@ -32,7 +32,7 @@ object Test extends App {
 
   val start = (allocationDescriptors.flatten map (_._1.startDate)).max
   println(start)
-  val end = vtbr.high.keys.max
+  val end = vtbr.endDate
   val periods: Int = (start.until(end, ChronoUnit.MONTHS) + 1).toInt
 
   for (d <- 0 to periods - span) {
