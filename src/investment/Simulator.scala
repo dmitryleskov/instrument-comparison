@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2016 Dmitry Leskov. All rights reserved.
+ */
+
 package investment
 
 import java.time.YearMonth

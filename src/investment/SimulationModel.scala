@@ -5,7 +5,7 @@
 package investment
 
 import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted, SalaryPercentage}
-import investment.SimulationModel.StrategyID.{BalanceGradually, RebalanceMonthly, Split}
+import investment.SimulationModel.StrategyID._
 import investment.data.{AverageSalary, Inflation}
 
 import scalafx.beans.property.{IntegerProperty, ObjectProperty, ReadOnlyIntegerProperty, ReadOnlyObjectProperty}
@@ -24,7 +24,9 @@ object SimulationModel {
     case object Split extends StrategyID {override def toString() = "Simple Split"}
     case object BalanceGradually extends StrategyID {override def toString() = "Balance Gradually"}
     case object RebalanceMonthly extends StrategyID {override def toString() = "Rebalance Monthly"}
-    val values = Seq(Split, BalanceGradually, RebalanceMonthly)
+    case object RebalanceQuarterly extends StrategyID {override def toString() = "Rebalance Quarterly"}
+    case object RebalanceAnnually extends StrategyID {override def toString() = "Rebalance Annually"}
+    val values = Seq(Split, BalanceGradually, RebalanceMonthly, RebalanceQuarterly, RebalanceAnnually)
   }
 
   sealed abstract class InstalmentRuleID
@@ -79,6 +81,8 @@ object SimulationModel {
         case Split => new Split(allocation)
         case BalanceGradually => new BalanceGradually(allocation)
         case RebalanceMonthly => new RebalanceMonthly(allocation)
+        case RebalanceQuarterly => new RebalanceQuarterly(allocation)
+        case RebalanceAnnually => new RebalanceAnnually(allocation)
       }
       val instalmentRule = instalmentRuleId.value match {
         case FixedAmount => new FixedAmount(start, initialInstalment.value)
