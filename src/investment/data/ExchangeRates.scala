@@ -5,6 +5,7 @@
 package investment.data
 
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 
 import investment.util.CSVFile
 
@@ -30,12 +31,15 @@ final class ExchangeRates(currency: String) {
     }
     (Map() ++ highs, Map() ++ lows)
   }
-  def mid(ym: YearMonth) = (highs(ym) + lows(ym)) / 2.0
-  val startDate = highs.keys.min
-  val endDate = highs.keys.max
+  val startDate: YearMonth = highs.keys.min
+  val endDate: YearMonth = highs.keys.max
+  private def mid0(ym: YearMonth) = (highs(ym) + lows(ym)) / 2.0
+  private val cache = (for (offset <- 0 to startDate.until(endDate, ChronoUnit.MONTHS).toInt)
+    yield mid0(startDate.plusMonths(offset))).toArray
+  def mid(ym: YearMonth): Double = cache(startDate.until(ym, ChronoUnit.MONTHS).toInt)
 }
 
 object ExchangeRates {
   private val cache = mutable.Map[String, ExchangeRates]()
-  def apply(currency: String) = cache.getOrElseUpdate(currency, new ExchangeRates(currency))
+  def apply(currency: String): ExchangeRates = cache.getOrElseUpdate(currency, new ExchangeRates(currency))
 }

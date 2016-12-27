@@ -59,12 +59,18 @@ case class Stock(ticker: String) extends Instrument {
     Map() ++ splits
   }
 
-  override def toString = ticker
+  override def toString: String = ticker
 
-  override lazy val startDate = high.keys.min
-  override lazy val endDate = high.keys.max
+  override lazy val startDate: YearMonth = high.keys.min
+  override lazy val endDate: YearMonth = high.keys.max
 
-  override def price(ym: YearMonth) = (high(ym) + low(ym)) / 2.0
+  private def price0(ym: YearMonth) = (high(ym) + low(ym)) / 2.0
+  private val priceCache = (for (offset <- 0 to startDate.until(endDate, ChronoUnit.MONTHS).toInt)
+    yield price0(startDate.plusMonths(offset))).toArray
 
-  override def yieldPercentage(ym: YearMonth): Double = dividends.getOrElse(ym, 0.0) / price(ym)
+  override def price(ym: YearMonth): Double = priceCache(startDate.until(ym, ChronoUnit.MONTHS).toInt)
+
+  private val yieldCache = (for (offset <- 0 to startDate.until(endDate, ChronoUnit.MONTHS).toInt)
+    yield dividends.getOrElse(startDate.plusMonths(offset), 0.0) / price(startDate.plusMonths(offset))).toArray
+  override def yieldPercentage(ym: YearMonth): Double = yieldCache(startDate.until(ym, ChronoUnit.MONTHS).toInt)
 }

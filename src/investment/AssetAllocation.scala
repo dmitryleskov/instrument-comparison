@@ -30,6 +30,6 @@ object AssetAllocation {
 class FixedAllocation (val initialAllocation: Map[Instrument, Double]) extends AssetAllocation {
   private lazy val normalized = AssetAllocation.normalize(initialAllocation)
   override def allocation(n: Int): Map[Instrument, Double] = normalized
-  override def instruments: List[Instrument] = normalized.keys.toList
+  override lazy val instruments: List[Instrument] = normalized.keys.toList
   override def toString = normalized.toString()
 }

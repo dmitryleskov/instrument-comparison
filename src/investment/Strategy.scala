@@ -13,7 +13,7 @@ sealed abstract class Strategy (allocation: AssetAllocation) {
     (for (position <- portfolio) yield (position.instrument, position.value(ym))).toMap
 
   private def portfolioValue(ym: YearMonth, portfolio: Portfolio): Double =
-    assetValues(ym, portfolio).values.sum
+    (for (position <- portfolio) yield position.value(ym)).sum
 
   /* Building blocks: */
   /** The entire instalment always goes to the first instrument (only useful for testing) */
