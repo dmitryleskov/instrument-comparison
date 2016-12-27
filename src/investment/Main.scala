@@ -30,21 +30,21 @@ import scalafx.util.StringConverter
 object Main extends JFXApp {
 
   def updateChart: Unit = {
-    val stats = SimulationModel.statistics.value
+    val allTimeStats = SimulationModel.statistics.value.allTimeStats
 
     // Shift serial numbers (1-based) so that Januaries fall on multiples of 12
-    val offset = stats.start.getMonthValue - 2
+    val offset = allTimeStats.start.getMonthValue - 2
 
-    val data0 = ObservableBuffer(stats.inflation map {
-      case (ym, v) => XYChart.Data[Number, Number](stats.start.until(ym, MONTHS) + 1 + offset, v) })
+    val data0 = ObservableBuffer(allTimeStats.inflation map {
+      case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) + 1 + offset, v) })
     val series0 = XYChart.Series[Number, Number]("Inflation", data0)
 
-    val data1 = ObservableBuffer(stats.aggregateInvestment map {
-      case (ym, v) => XYChart.Data[Number, Number](stats.start.until(ym, MONTHS) + 1 + offset, v) })
+    val data1 = ObservableBuffer(allTimeStats.aggregateInvestment map {
+      case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) + 1 + offset, v) })
     val series1 = XYChart.Series[Number, Number]("Investment", data1)
 
-    val data2 = ObservableBuffer(stats.portfolioValuations map {
-      case (ym, v) => XYChart.Data[Number, Number](stats.start.until(ym, MONTHS) +1 + offset, v) })
+    val data2 = ObservableBuffer(allTimeStats.portfolioValuations map {
+      case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) +1 + offset, v) })
     val series2 = XYChart.Series[Number, Number]("Portfolio", data2)
 
     lineChart.getData.clear()
@@ -57,24 +57,23 @@ object Main extends JFXApp {
   def summary: ReadOnlyStringProperty = _summary
 
   def updateStats: Unit = {
-    val stats = SimulationModel.statistics.value
+    val allTime = SimulationModel.statistics.value.allTimeStats
     _summary.value =
-      "Period: " + stats.start + " - " + stats.end + " (" + stats.duration + " months)\n" +
-        "Last instalment: " + stats.instalments.last._2.formatted("%.2f") + "\n" +
+      "Period: " + allTime.start + " - " + allTime.start.plusMonths(allTime.duration - 1) + " (" + allTime.duration + " months)\n" +
+        "Last instalment: " + allTime.instalments.last._2.formatted("%.2f") + "\n" +
         //        snapshots.last.portfolio + "\n" +
-        "Portfolio Value: " + stats.portfolioValuations.last._2.formatted("%.2f") + "\n" +
-        "Total Investment: " + stats.totalInvestment.formatted("%.2f") + "\n" +
-        "Total Income: " + stats.totalIncome.formatted("%.2f") + "\n" +
-        "Capital Gain: " + (stats.portfolioValuations.last._2 - stats.totalInvestment - stats.totalIncome).formatted("%.2f") + "\n" +
-        "Last 12M Income: " + stats.last12MonthsIncome.formatted("%.2f") + "\n" +
-        "Return: " +
-        ((stats.portfolioValuations.last._2 - stats.totalInvestment) / stats.totalInvestment * 100).formatted("%.1f%%") + "\n" +
-        "Inflation-adjusted Return: " +
-        ((stats.portfolioValuations.last._2 - stats.inflation.last._2) / stats.inflation.last._2 * 100).formatted("%.1f%%") + "\n" +
-        "Absolute drawdown: " + stats.AbsoluteDrawdown0 + "\n" +
-        "Absolute drawdown (inflation adjusted): " + stats.AbsoluteDrawdown1 + "\n" +
-        "Maximum drawdown: " + stats.MaximumDrawdown0 + "\n" +
-        "Relative drawdown: " + stats.RelativeDrawdown0
+        "Portfolio Value: " + allTime.portfolioValuations.last._2.formatted("%.2f") + "\n" +
+        "Total Investment: " + allTime.totalInvestment.formatted("%.2f") + "\n" +
+        "Total Income: " + allTime.totalIncome.formatted("%.2f") + "\n" +
+        "Capital Gain: " + (allTime.portfolioValuations.last._2 - allTime.totalInvestment - allTime.totalIncome).formatted("%.2f") + "\n" +
+        "Last 12M Income: " + allTime.last12MonthsIncome.formatted("%.2f") + "\n" +
+        "Return: " + (allTime.returnOnInvestment0 * 100).formatted("%.1f%%") + "\n" +
+        "Inflation-adjusted Return: " + (allTime.returnOnInvestment * 100).formatted("%.1f%%") + "\n" +
+        "Absolute drawdown: " + allTime.absoluteDrawdown0 + "\n" +
+        "Absolute drawdown (inflation adjusted): " + allTime.absoluteDrawdown + "\n" +
+        "Maximum drawdown: " + allTime.maximumDrawdown0 + "\n" +
+        "Relative drawdown: " + allTime.relativeDrawdown0 + "\n\n" +
+        SimulationModel.statistics.value.statsByInterval
   }
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
