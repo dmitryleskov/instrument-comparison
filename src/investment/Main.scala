@@ -24,6 +24,7 @@ import scalafx.geometry.Insets
 import scalafx.scene.chart.{LineChart, NumberAxis, XYChart}
 import scalafx.scene.control._
 import scalafx.scene.layout.{BorderPane, HBox, StackPane, VBox}
+import scalafx.scene.text.Font
 import scalafx.scene.{Node, Scene}
 import scalafx.util.StringConverter
 
@@ -174,6 +175,7 @@ object Main extends JFXApp {
         closable = false
         content = new TextArea {
           editable = false
+          font = new Font("Arial", 16)
           text <== summary
         }
       }
