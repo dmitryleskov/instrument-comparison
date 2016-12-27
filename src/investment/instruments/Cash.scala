@@ -29,7 +29,7 @@ object Cash {
     override def yieldPercentage(ym: YearMonth): Double = 0.0
   }
 
-  /** Ruble stands out as being not a foreign currency, hence the need to prepopulate the cache */
+  /** Ruble stands out as being not a foreign currency, so prepopulate the cache to avoid matching in apply(). */
   private val cache = mutable.Map[String, Cash]("RUB" -> RubleCash)
 
   /** @return Cash instance representing the given currency */

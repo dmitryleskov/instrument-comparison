@@ -69,7 +69,7 @@ sealed abstract class Strategy (allocation: AssetAllocation) {
 
       val newPortfolio =
         extra match {
-          case Some(amount) => {println(ym, extra);split(month, ym, interimPortfolio, amount)}
+          case Some(amount) => split(month, ym, interimPortfolio, amount)
           case None => interimPortfolio
         }
       assert(portfolioValue(ym, portfolio) + instalment - portfolioValue(ym, newPortfolio) < 1e-5)
