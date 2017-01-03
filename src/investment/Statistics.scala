@@ -16,7 +16,9 @@ class Statistics(val simulator: Simulator) {
   case class Item[T] (best: T,
                       worst: T,
                       median: T,
-                      last: T)
+                      last: T) {
+    override def toString = s"Best: $best Worst: $worst Median: $median Last: $last"
+  }
 
   case class Results(interval: Interval,
                      returnOnInvestment0: Item[Double],
@@ -109,7 +111,7 @@ class Statistics(val simulator: Simulator) {
       Item(
         best = r.foldLeft(Drawdown.zero)((acc, r) => if (acc.ratio < r.relativeDrawdown0.ratio) acc else r.relativeDrawdown0),
         worst = r.foldLeft(Drawdown.zero)((acc, r) => if (acc.ratio > r.relativeDrawdown0.ratio) acc else r.relativeDrawdown0),
-        median = Drawdown.zero, // Need to sort
+        median = r.sortBy(_.relativeDrawdown0.ratio).apply(r.length / 2).relativeDrawdown0,
         last = r.last.relativeDrawdown0
       )
 

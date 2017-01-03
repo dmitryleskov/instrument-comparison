@@ -74,7 +74,7 @@ object Main extends JFXApp {
         "Absolute drawdown (inflation adjusted): " + allTime.absoluteDrawdown + "\n" +
         "Maximum drawdown: " + allTime.maximumDrawdown0 + "\n" +
         "Relative drawdown: " + allTime.relativeDrawdown0 + "\n\n" +
-        SimulationModel.statistics.value.statsByInterval
+        (for ((k,v) <- SimulationModel.statistics.value.statsByInterval) yield s"$k $v\n")
   }
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
