@@ -41,14 +41,20 @@ class Statistics(val simulator: Simulator) {
         case ((ymv, v), (ymb, b)) if ymv == ymb => Drawdown(ymv, b - v, (b - v) / b)
       }).foldLeft(Drawdown.zero)(_ maxByAmount _)
 
-    private def drawdown(valuations: List[(YearMonth, Double)], max: (Drawdown, Drawdown) => Drawdown) =
-      (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, Drawdown.zero) {
-        case ((lastMax, lastMin, res), (ym, v)) =>
-          if (v > lastMax)
-            (v, v, max(res, Drawdown(ym, lastMax - lastMin, (lastMax - lastMin) / lastMax)))
-          else
-            (lastMax, lastMin min v, res)
-      }._3
+    private def drawdown(valuations: List[(YearMonth, Double)], max: (Drawdown, Drawdown) => Drawdown) = {
+      val (lastMax, lastMin, lastMinDate, interim) =
+        (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, start, Drawdown.zero) {
+          case (prev@(prevMax, prevMin, prevMinDate, res), (ym, v)) =>
+            if (v > prevMax)
+              (v, v, ym, max(res, Drawdown(prevMinDate, prevMax - prevMin, (prevMax - prevMin) / prevMax)))
+            else
+              if (v < prevMin) (prevMax, v, ym, res)
+            else prev
+        }
+      if (lastMax > lastMin)
+        max(Drawdown(valuations.last._1, lastMax - lastMin, (lastMax - lastMin) / lastMax), interim)
+      else interim
+    }
 
     /** @return Maximum difference between a peak and the subsequent trough */
     private[Statistics] def maximum(valuations: List[(YearMonth, Double)]) =
