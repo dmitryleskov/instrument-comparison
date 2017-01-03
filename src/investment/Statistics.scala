@@ -131,10 +131,9 @@ class Statistics(val simulator: Simulator) {
   val statsByInterval: Map[Int, Item[RelativeDrawdown]] = for ((interval, r) <- resultsByInterval) yield
     interval ->
       Item(
-        best = r.foldLeft(RelativeDrawdownOps.zero)((acc, r) => if (acc.ratio < r.relativeDrawdown0.ratio) acc else r.relativeDrawdown0),
-        worst = r.foldLeft(RelativeDrawdownOps.zero)((acc, r) => if (acc.ratio > r.relativeDrawdown0.ratio) acc else r.relativeDrawdown0),
-        median = r.sortBy(_.relativeDrawdown0.ratio).apply(r.length / 2).relativeDrawdown0,
+        best = r.minBy(_.relativeDrawdown0).relativeDrawdown0,
+        worst = r.maxBy(_.relativeDrawdown0).relativeDrawdown0,
+        median = r.sortBy(_.relativeDrawdown0).apply(r.length / 2).relativeDrawdown0,
         last = r.last.relativeDrawdown0
       )
-
 }
