@@ -30,16 +30,20 @@ class Statistics(val simulator: Simulator) {
 
   type Z = Map[Interval, Results]
 
-  trait HasZero[T <: Ordered[T]] {
+  trait HasZero[T] {
     def zero: T
   }
   trait CanBuildFrom3[-T1, -T2, -T3, +U] {
     def build(t1: T1, t2: T2, t3: T3): U
   }
-  
-  case class AbsoluteDrawdown(date: YearMonth, amount: Double, ratio: Double) extends Ordered[AbsoluteDrawdown] {
-    override def compare(that: AbsoluteDrawdown): Int = this.amount.compare(that.amount)
+
+  abstract class Drawdown
+
+  case class AbsoluteDrawdown(date: YearMonth, amount: Double, ratio: Double) extends Drawdown {
     override def toString = if (amount > 0) f"$amount%.2f (${ratio * 100}%.1f%%) $date" else "0.00"
+  }
+  implicit object AbsoluteDrawdownOrdering extends Ordering[AbsoluteDrawdown] {
+    override def compare(x: AbsoluteDrawdown, y: AbsoluteDrawdown): Int = x.amount.compare(y.amount)
   }
   implicit object AbsoluteDrawdownHasZero extends HasZero[AbsoluteDrawdown] {
     implicit def zero: AbsoluteDrawdown = AbsoluteDrawdown(start, 0.0, 0.0)
@@ -49,9 +53,11 @@ class Statistics(val simulator: Simulator) {
       AbsoluteDrawdown(minDate, max - min, (max - min) / max)
   }
   
-  case class RelativeDrawdown(date: YearMonth, ratio: Double, amount: Double) extends Ordered[RelativeDrawdown] {
-    override def compare(that: RelativeDrawdown): Int = this.ratio.compare(that.ratio)
+  case class RelativeDrawdown(date: YearMonth, ratio: Double, amount: Double) extends Drawdown {
     override def toString = if (ratio > 0) f"${ratio * 100}%.1f%% ($amount%.2f) $date" else "0.0%"
+  }
+  implicit object RelativeDrawdownOrdering extends Ordering[RelativeDrawdown] {
+    override def compare(x: RelativeDrawdown, y: RelativeDrawdown): Int = x.ratio.compare(y.ratio)
   }
   implicit object RelativeDrawdownHasZero extends HasZero[RelativeDrawdown] {
     implicit def zero: RelativeDrawdown = RelativeDrawdown(start, 0.0, 0.0)
@@ -61,30 +67,27 @@ class Statistics(val simulator: Simulator) {
       RelativeDrawdown(minDate, (max - min) / max, max - min)
   }
   
-  case object Drawdown {
+  object Drawdown {
     /** @return Maximum difference between investment-to-date and current portfolio value */
-    private[Statistics] def absolute(valuations: List[(YearMonth, Double)], baseline: List[(YearMonth, Double)]) =
+    private[Statistics] def absolute(valuations: List[(YearMonth, Double)], baseline: List[(YearMonth, Double)])
+                                    (implicit ordering: Ordering[AbsoluteDrawdown])=
       ((valuations zip baseline) map {
         case ((ymv, v), (ymb, b)) if ymv == ymb => AbsoluteDrawdown(ymv, b, v)
-      }).foldLeft(AbsoluteDrawdownHasZero.zero)((x, y) => if (x > y) x else y)
+      }).foldLeft(AbsoluteDrawdownHasZero.zero)(ordering.max)
 
-    private def drawdown[T <: Ordered[T]](valuations: List[(YearMonth, Double)])
-                           (implicit hasZero: HasZero[T], builder: CanBuildFrom3[YearMonth, Double, Double, T])= {
+    private def drawdown[T <: Drawdown](valuations: List[(YearMonth, Double)])
+                           (implicit ordering: Ordering[T], hasZero: HasZero[T], builder: CanBuildFrom3[YearMonth, Double, Double, T])= {
       val (lastMax, lastMin, lastMinDate, interim) =
         (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, start, hasZero.zero) {
           case (prev@(prevMax, prevMin, prevMinDate, res), (ym, v)) =>
-            if (v > prevMax) {
-              val d = builder.build(prevMinDate, prevMax, prevMin)
-              (v, v, ym, if (d > res) d else res)
-            }
+            if (v > prevMax)
+              (v, v, ym, ordering.max(res, builder.build(prevMinDate, prevMax, prevMin)))
             else
               if (v < prevMin) (prevMax, v, ym, res)
             else prev
         }
-      if (lastMax > lastMin) {
-        val d = builder.build(valuations.last._1, lastMax, lastMin)
-        if (d > interim) d else interim
-      }
+      if (lastMax > lastMin)
+        ordering.max(interim, builder.build(valuations.last._1, lastMax, lastMin))
       else interim
     }
 
