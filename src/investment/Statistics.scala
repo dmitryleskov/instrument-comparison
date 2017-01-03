@@ -23,48 +23,78 @@ class Statistics(val simulator: Simulator) {
   case class Results(interval: Interval,
                      returnOnInvestment0: Item[Double],
                      returnOnInvestment: Item[Double],
-                     absoluteDrawdown0: Item[Drawdown],
-                     absoluteDrawdown: Item[Drawdown],
-                     maximumDrawdown: Item[Drawdown],
-                     relativeDrawdown: Item[Drawdown])
+                     absoluteDrawdown0: Item[AbsoluteDrawdown],
+                     absoluteDrawdown: Item[AbsoluteDrawdown],
+                     maximumDrawdown: Item[AbsoluteDrawdown],
+                     relativeDrawdown: Item[RelativeDrawdown])
 
   type Z = Map[Interval, Results]
 
-  sealed case class Drawdown(date: YearMonth, amount: Double, ratio: Double) {
-    def maxByAmount(other: Drawdown) = if (other.amount > amount) other else this
-    def maxByRatio(other: Drawdown) = if (other.ratio > ratio) other else this
-    override def toString = if (amount > 0) f"$amount%.2f ${ratio * 100}%.1f%% $date" else "0.0%"
+  trait HasZero[T <: Ordered[T]] {
+    def zero: T
   }
+  trait CanBuildFrom3[-T1, -T2, -T3, +U] {
+    def build(t1: T1, t2: T2, t3: T3): U
+  }
+  
+  case class AbsoluteDrawdown(date: YearMonth, amount: Double, ratio: Double) extends Ordered[AbsoluteDrawdown] {
+    override def compare(that: AbsoluteDrawdown): Int = this.amount.compare(that.amount)
+    override def toString = if (amount > 0) f"$amount%.2f (${ratio * 100}%.1f%%) $date" else "0.00"
+  }
+  implicit object AbsoluteDrawdownHasZero extends HasZero[AbsoluteDrawdown] {
+    implicit def zero: AbsoluteDrawdown = AbsoluteDrawdown(start, 0.0, 0.0)
+  }
+  implicit object AbsoluteDrawdownBuilder extends CanBuildFrom3[YearMonth, Double, Double, AbsoluteDrawdown] {
+    implicit def build(minDate: YearMonth, max: Double, min: Double): AbsoluteDrawdown = 
+      AbsoluteDrawdown(minDate, max - min, (max - min) / max)
+  }
+  
+  case class RelativeDrawdown(date: YearMonth, ratio: Double, amount: Double) extends Ordered[RelativeDrawdown] {
+    override def compare(that: RelativeDrawdown): Int = this.ratio.compare(that.ratio)
+    override def toString = if (ratio > 0) f"${ratio * 100}%.1f%% ($amount%.2f) $date" else "0.0%"
+  }
+  implicit object RelativeDrawdownHasZero extends HasZero[RelativeDrawdown] {
+    implicit def zero: RelativeDrawdown = RelativeDrawdown(start, 0.0, 0.0)
+  }
+  implicit object RelativeDrawdownBuilder extends CanBuildFrom3[YearMonth, Double, Double, RelativeDrawdown] {
+    implicit def build(minDate: YearMonth, max: Double, min: Double): RelativeDrawdown =
+      RelativeDrawdown(minDate, (max - min) / max, max - min)
+  }
+  
   case object Drawdown {
-    val zero = Drawdown(start, 0.0, 0.0)
     /** @return Maximum difference between investment-to-date and current portfolio value */
     private[Statistics] def absolute(valuations: List[(YearMonth, Double)], baseline: List[(YearMonth, Double)]) =
       ((valuations zip baseline) map {
-        case ((ymv, v), (ymb, b)) if ymv == ymb => Drawdown(ymv, b - v, (b - v) / b)
-      }).foldLeft(Drawdown.zero)(_ maxByAmount _)
+        case ((ymv, v), (ymb, b)) if ymv == ymb => AbsoluteDrawdown(ymv, b, v)
+      }).foldLeft(AbsoluteDrawdownHasZero.zero)((x, y) => if (x > y) x else y)
 
-    private def drawdown(valuations: List[(YearMonth, Double)], max: (Drawdown, Drawdown) => Drawdown) = {
+    private def drawdown[T <: Ordered[T]](valuations: List[(YearMonth, Double)])
+                           (implicit hasZero: HasZero[T], builder: CanBuildFrom3[YearMonth, Double, Double, T])= {
       val (lastMax, lastMin, lastMinDate, interim) =
-        (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, start, Drawdown.zero) {
+        (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, start, hasZero.zero) {
           case (prev@(prevMax, prevMin, prevMinDate, res), (ym, v)) =>
-            if (v > prevMax)
-              (v, v, ym, max(res, Drawdown(prevMinDate, prevMax - prevMin, (prevMax - prevMin) / prevMax)))
+            if (v > prevMax) {
+              val d = builder.build(prevMinDate, prevMax, prevMin)
+              (v, v, ym, if (d > res) d else res)
+            }
             else
               if (v < prevMin) (prevMax, v, ym, res)
             else prev
         }
-      if (lastMax > lastMin)
-        max(Drawdown(valuations.last._1, lastMax - lastMin, (lastMax - lastMin) / lastMax), interim)
+      if (lastMax > lastMin) {
+        val d = builder.build(valuations.last._1, lastMax, lastMin)
+        if (d > interim) d else interim
+      }
       else interim
     }
 
     /** @return Maximum difference between a peak and the subsequent trough */
     private[Statistics] def maximum(valuations: List[(YearMonth, Double)]) =
-      drawdown(valuations, _ maxByAmount _)
+      drawdown[AbsoluteDrawdown](valuations)
 
     /** @return Maximum ratio of the difference between a peak and the subsequent trough over the peak */
     private[Statistics] def relative(valuations: List[(YearMonth, Double)]) =
-      drawdown(valuations, _ maxByRatio _)
+      drawdown[RelativeDrawdown](valuations)
   }
 
   class InterimResults(val start: YearMonth, val duration: Int) {
@@ -87,10 +117,10 @@ class Statistics(val simulator: Simulator) {
     val returnOnInvestment0: Double = (portfolioValuations.last._2 - totalInvestment) / totalInvestment
     val returnOnInvestment: Double = (portfolioValuations.last._2 - inflation.last._2) / inflation.last._2
 
-    val absoluteDrawdown0: Drawdown = Drawdown.absolute(portfolioValuations, aggregateInvestment)
-    val absoluteDrawdown: Drawdown = Drawdown.absolute(portfolioValuations, inflation)
-    val maximumDrawdown0: Drawdown = Drawdown.maximum(portfolioValuations)
-    val relativeDrawdown0: Drawdown = Drawdown.relative(portfolioValuations)
+    val absoluteDrawdown0: AbsoluteDrawdown = Drawdown.absolute(portfolioValuations, aggregateInvestment)
+    val absoluteDrawdown: AbsoluteDrawdown = Drawdown.absolute(portfolioValuations, inflation)
+    val maximumDrawdown0: AbsoluteDrawdown = Drawdown.maximum(portfolioValuations)
+    val relativeDrawdown0: RelativeDrawdown = Drawdown.relative(portfolioValuations)
   }
 
   val start: YearMonth = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.startDate)).max
@@ -106,11 +136,11 @@ class Statistics(val simulator: Simulator) {
       )
     ).toMap
 
-  val statsByInterval: Map[Int, Item[Drawdown]] = for ((interval, r) <- resultsByInterval) yield
+  val statsByInterval: Map[Int, Item[RelativeDrawdown]] = for ((interval, r) <- resultsByInterval) yield
     interval ->
       Item(
-        best = r.foldLeft(Drawdown.zero)((acc, r) => if (acc.ratio < r.relativeDrawdown0.ratio) acc else r.relativeDrawdown0),
-        worst = r.foldLeft(Drawdown.zero)((acc, r) => if (acc.ratio > r.relativeDrawdown0.ratio) acc else r.relativeDrawdown0),
+        best = r.foldLeft(RelativeDrawdownHasZero.zero)((acc, r) => if (acc.ratio < r.relativeDrawdown0.ratio) acc else r.relativeDrawdown0),
+        worst = r.foldLeft(RelativeDrawdownHasZero.zero)((acc, r) => if (acc.ratio > r.relativeDrawdown0.ratio) acc else r.relativeDrawdown0),
         median = r.sortBy(_.relativeDrawdown0.ratio).apply(r.length / 2).relativeDrawdown0,
         last = r.last.relativeDrawdown0
       )
