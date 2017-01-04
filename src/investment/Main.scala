@@ -57,6 +57,8 @@ object Main extends JFXApp {
   private val _summary = StringProperty("")
   def summary: ReadOnlyStringProperty = _summary
 
+  val stats: Map[Int, StringProperty] = (Statistics.intervals map {case x: Int => (x, StringProperty(""))}).toMap
+
   def updateStats: Unit = {
     val allTime = SimulationModel.statistics.value.allTimeStats
     _summary.value =
@@ -73,8 +75,10 @@ object Main extends JFXApp {
         "Absolute drawdown: " + allTime.absoluteDrawdown0 + "\n" +
         "Absolute drawdown (inflation adjusted): " + allTime.absoluteDrawdown + "\n" +
         "Maximum drawdown: " + allTime.maximumDrawdown0 + "\n" +
-        "Relative drawdown: " + allTime.relativeDrawdown0 + "\n\n" +
-        (for ((k,v) <- SimulationModel.statistics.value.statsByInterval) yield s"$k $v\n")
+        "Relative drawdown: " + allTime.relativeDrawdown0 + "\n\n"
+    for (k <- Statistics.intervals) {
+      stats(k).value = SimulationModel.statistics.value.statsByInterval.getOrElse(k, "").toString
+    }
   }
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
@@ -171,7 +175,7 @@ object Main extends JFXApp {
         content = lineChart
       },
       new Tab {
-        text = "Stats"
+        text = "All Time"
         closable = false
         content = new TextArea {
           editable = false
@@ -180,6 +184,20 @@ object Main extends JFXApp {
         }
       }
     )
+  }
+
+  for (k <- Statistics.intervals) {
+    tabpane +=
+      new Tab {
+        text = s"${k}Y"
+        closable = false
+        disable <== stats(k).isEmpty
+        content = new TextArea {
+          editable = false
+          font = new Font("Arial", 14)
+          text <== stats(k)
+        }
+      }
   }
 
   val chart = new BorderPane {

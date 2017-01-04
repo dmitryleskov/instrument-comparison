@@ -4,33 +4,47 @@ import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
 import investment.data.{AverageSalary, Inflation}
+import investment.instruments.Instrument
 
 import scala.collection.immutable.{IndexedSeq, Seq}
 
 class Statistics(val simulator: Simulator) {
-  abstract class Interval
-  case object AllTime extends Interval
-  case class Years(years: Int) extends Interval
-  val intervals = List(1, 3, 5, 10, 15, 20, 30, 40, 50)
 
-  case class Item[T] (best: T,
-                      worst: T,
-                      median: T,
-                      last: T) {
-    override def toString = s"Best: $best Worst: $worst Median: $median Last: $last"
+  case class Item[T](best: T,
+                     worst: T,
+                     median: T,
+                     last: T) {
+    override def toString = s"Best: $best\nWorst: $worst\nMedian: $median\nLast: $last"
   }
 
-  case class Results(interval: Interval,
-                     returnOnInvestment0: Item[Double],
+  case class Results(returnOnInvestment0: Item[Double],
                      returnOnInvestment: Item[Double],
                      absoluteDrawdown0: Item[AbsoluteDrawdown],
                      absoluteDrawdown: Item[AbsoluteDrawdown],
-                     maximumDrawdown: Item[AbsoluteDrawdown],
-                     relativeDrawdown: Item[RelativeDrawdown])
-
-  type Z = Map[Interval, Results]
+                     maximumDrawdown0: Item[AbsoluteDrawdown],
+                     relativeDrawdown0: Item[RelativeDrawdown]) {
+    override def toString =
+      s"""|Return on Investment:
+          |$returnOnInvestment0
+          |
+          |Return on Investment (Inflation-Adjusted):
+          |$returnOnInvestment
+          |
+          |Absolute Drawdown:
+          |$absoluteDrawdown0
+          |
+          |Absolute Drawdown (Inflation-Adjusted):
+          |$absoluteDrawdown
+          |
+          |Maximum Drawdown:
+          |$maximumDrawdown0
+          |
+          |Relative Drawdown:
+          |$relativeDrawdown0""".stripMargin
+  }
 
   abstract class Drawdown
+
   trait DrawdownOps[D <: Drawdown] extends Ordering[D] {
     def zero: D
     def build(ym: YearMonth, max: Double, min: Double): D
@@ -39,16 +53,18 @@ class Statistics(val simulator: Simulator) {
   case class AbsoluteDrawdown(date: YearMonth, amount: Double, ratio: Double) extends Drawdown {
     override def toString = if (amount > 0) f"$amount%.2f (${ratio * 100}%.1f%%) $date" else "0.00"
   }
+
   implicit object AbsoluteDrawdownOps extends DrawdownOps[AbsoluteDrawdown] {
     override def compare(x: AbsoluteDrawdown, y: AbsoluteDrawdown): Int = x.amount.compare(y.amount)
     implicit def zero: AbsoluteDrawdown = AbsoluteDrawdown(start, 0.0, 0.0)
     implicit def build(minDate: YearMonth, max: Double, min: Double): AbsoluteDrawdown =
       AbsoluteDrawdown(minDate, max - min, (max - min) / max)
   }
-  
+
   case class RelativeDrawdown(date: YearMonth, ratio: Double, amount: Double) extends Drawdown {
     override def toString = if (ratio > 0) f"${ratio * 100}%.1f%% ($amount%.2f) $date" else "0.0%"
   }
+
   implicit object RelativeDrawdownOps extends DrawdownOps[RelativeDrawdown] {
     override def compare(x: RelativeDrawdown, y: RelativeDrawdown): Int = x.ratio.compare(y.ratio)
     implicit def zero: RelativeDrawdown = RelativeDrawdown(start, 0.0, 0.0)
@@ -121,19 +137,37 @@ class Statistics(val simulator: Simulator) {
   val allTimeStats = new InterimResults(start, allTime)
 
   private val resultsByInterval: Map[Int, IndexedSeq[InterimResults]] =
-    (intervals map (_ * 12) filter (_ < allTime) map (duration =>
-        duration ->
-        (for (offset <- 0 to allTime - duration) yield
-          new InterimResults(start.plusMonths(offset), duration))
+    (Statistics.intervals filter (_ * 12 < allTime) map (years =>
+        years ->
+        (for (offset <- 0 to allTime - years * 12) yield
+          new InterimResults(start.plusMonths(offset), years * 12))
       )
     ).toMap
 
-  val statsByInterval: Map[Int, Item[RelativeDrawdown]] = for ((interval, r) <- resultsByInterval) yield
-    interval ->
-      Item(
-        best = r.minBy(_.relativeDrawdown0).relativeDrawdown0,
-        worst = r.maxBy(_.relativeDrawdown0).relativeDrawdown0,
-        median = r.sortBy(_.relativeDrawdown0).apply(r.length / 2).relativeDrawdown0,
-        last = r.last.relativeDrawdown0
-      )
+  def compute[T](rs: IndexedSeq[InterimResults], getKey: InterimResults => T)(implicit ordering: Ordering[T]): Item[T] = {
+    val biggerIsBetter = false
+    val s = rs.sorted(ordering.on(getKey))
+    Item(
+      best = getKey(if (biggerIsBetter) s.last else s.head),
+      worst = getKey(if (biggerIsBetter) s.head else s.last),
+      median = getKey(s.apply(s.length / 2)),
+      last = getKey(rs.last)
+    )
+  }
+
+  val statsByInterval: Map[Int, Results] =
+    for ((interval, r) <- resultsByInterval) yield
+      interval ->
+        Results(
+          returnOnInvestment0 = compute(r, _.returnOnInvestment0),
+          returnOnInvestment = compute(r, _.returnOnInvestment),
+          absoluteDrawdown0 = compute(r, _.absoluteDrawdown0),
+          absoluteDrawdown = compute(r, _.absoluteDrawdown),
+          maximumDrawdown0 = compute(r, _.maximumDrawdown0),
+          relativeDrawdown0 = compute(r, _.relativeDrawdown0)
+        )
+}
+
+object Statistics {
+  val intervals = List(1, 3, 5, 10, 15, 20, 30, 40, 50, 60, 75, 100) filter (Instrument.startDate.plusYears(_).isBefore(YearMonth.now()))
 }
