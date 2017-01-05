@@ -17,13 +17,13 @@ import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.beans.binding.Bindings
-import scalafx.beans.property.{IntegerProperty, ReadOnlyStringProperty, StringProperty}
+import scalafx.beans.property.{IntegerProperty, ReadOnlyStringProperty, ReadOnlyStringWrapper, StringProperty}
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
 import scalafx.geometry.Insets
 import scalafx.scene.chart.{LineChart, NumberAxis, XYChart}
 import scalafx.scene.control._
-import scalafx.scene.layout.{BorderPane, HBox, StackPane, VBox}
+import scalafx.scene.layout._
 import scalafx.scene.text.Font
 import scalafx.scene.{Node, Scene}
 import scalafx.util.StringConverter
@@ -59,23 +59,34 @@ object Main extends JFXApp {
 
   val stats: Map[Int, StringProperty] = (Statistics.intervals map {case x: Int => (x, StringProperty(""))}).toMap
 
+
+  object DisplayStats {
+    class DisplayItem(val name: String, private val source: Statistics => String) {
+      private val wrapper = ReadOnlyStringWrapper("")
+      val property: ReadOnlyStringProperty = wrapper.readOnlyProperty
+      wrapper <== Bindings.createStringBinding(
+        () => if (SimulationModel.statistics.value != null) source(SimulationModel.statistics.value) else "N/A",
+        SimulationModel.statistics)
+    }
+
+    val items: IndexedSeq[DisplayItem] = IndexedSeq(
+      new DisplayItem("Period", (stats) => stats.allTimeStats.start + " - " + stats.allTimeStats.start.plusMonths(stats.allTimeStats.duration - 1) + " (" + stats.allTimeStats.duration + " months)"),
+      new DisplayItem("Last instalment", (stats) => stats.allTimeStats.instalments.last._2.formatted("%.2f")),
+      new DisplayItem("Portfolio Value", (stats) => stats.allTimeStats.portfolioValuations.last._2.formatted("%.2f")),
+      new DisplayItem("Total Investment", (stats) => stats.allTimeStats.totalInvestment.formatted("%.2f")),
+      new DisplayItem("Total Income", (stats) => stats.allTimeStats.totalIncome.formatted("%.2f")),
+      new DisplayItem("Capital Gain", (stats) => (stats.allTimeStats.portfolioValuations.last._2 - stats.allTimeStats.totalInvestment - stats.allTimeStats.totalIncome).formatted("%.2f")),
+      new DisplayItem("Last 12M Income", (stats) => stats.allTimeStats.last12MonthsIncome.formatted("%.2f")),
+      new DisplayItem("Return", (stats) => (stats.allTimeStats.returnOnInvestment0 * 100).formatted("%.1f%%")),
+      new DisplayItem("Inflation-adjusted Return", (stats) => (stats.allTimeStats.returnOnInvestment * 100).formatted("%.1f%%")),
+      new DisplayItem("Absolute drawdown", (stats) => stats.allTimeStats.absoluteDrawdown0.toString),
+      new DisplayItem("Absolute drawdown (inflation adjusted)", (stats) => stats.allTimeStats.absoluteDrawdown.toString),
+      new DisplayItem("Maximum drawdown", (stats) => stats.allTimeStats.maximumDrawdown0.toString),
+      new DisplayItem("Relative drawdown", (stats) => stats.allTimeStats.relativeDrawdown0.toString)
+    )
+  }
+
   def updateStats: Unit = {
-    val allTime = SimulationModel.statistics.value.allTimeStats
-    _summary.value =
-      "Period: " + allTime.start + " - " + allTime.start.plusMonths(allTime.duration - 1) + " (" + allTime.duration + " months)\n" +
-        "Last instalment: " + allTime.instalments.last._2.formatted("%.2f") + "\n" +
-        //        snapshots.last.portfolio + "\n" +
-        "Portfolio Value: " + allTime.portfolioValuations.last._2.formatted("%.2f") + "\n" +
-        "Total Investment: " + allTime.totalInvestment.formatted("%.2f") + "\n" +
-        "Total Income: " + allTime.totalIncome.formatted("%.2f") + "\n" +
-        "Capital Gain: " + (allTime.portfolioValuations.last._2 - allTime.totalInvestment - allTime.totalIncome).formatted("%.2f") + "\n" +
-        "Last 12M Income: " + allTime.last12MonthsIncome.formatted("%.2f") + "\n" +
-        "Return: " + (allTime.returnOnInvestment0 * 100).formatted("%.1f%%") + "\n" +
-        "Inflation-adjusted Return: " + (allTime.returnOnInvestment * 100).formatted("%.1f%%") + "\n" +
-        "Absolute drawdown: " + allTime.absoluteDrawdown0 + "\n" +
-        "Absolute drawdown (inflation adjusted): " + allTime.absoluteDrawdown + "\n" +
-        "Maximum drawdown: " + allTime.maximumDrawdown0 + "\n" +
-        "Relative drawdown: " + allTime.relativeDrawdown0 + "\n\n"
     for (k <- Statistics.intervals) {
       stats(k).value = SimulationModel.statistics.value.statsByInterval.getOrElse(k, "").toString
     }
@@ -177,12 +188,31 @@ object Main extends JFXApp {
       new Tab {
         text = "All Time"
         closable = false
-        content = new TextArea {
-          editable = false
-          font = new Font("Arial", 16)
-          text <== summary
+        content =
+            new GridPane {
+              padding = Insets(15)
+              hgap = 8
+              vgap = 8
+              columnConstraints = Seq(
+                new ColumnConstraints { percentWidth = 50 },
+                new ColumnConstraints { percentWidth = 50 }
+              )
+              for (i <- DisplayStats.items.indices;
+                   item = DisplayStats.items(i)) {
+                add(new Label {
+                  text = item.name + ":"
+                  maxWidth = Double.MaxValue
+                  alignment = javafx.geometry.Pos.CENTER_RIGHT
+                  style = "-fx-font-weight: bold; -fx-font-size: 120%"
+                }, 0, i)
+                add(new Label {
+                  text <== item.property
+                  maxWidth = Double.MaxValue
+                  style = "-fx-font-size: 120%"
+                }, 1, i)
+              }
+            }
         }
-      }
     )
   }
 
