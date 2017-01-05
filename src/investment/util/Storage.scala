@@ -5,7 +5,7 @@
 package investment.util
 
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
-import investment.instruments._
+import investment.instruments.{Deposit, _}
 
 import scala.xml.NodeSeq
 
@@ -44,9 +44,7 @@ object Storage {
     def toXML(i: Instrument): xml.Elem =
       i match {
         case s: Stock => <stock>{s.ticker}</stock>
-        case DepositRUB => <depositRUB/>
-        case Deposit("USD", annualInterest) => <depositUSD>{annualInterest}</depositUSD>
-        case Deposit("EUR", annualInterest) => <depositEUR>{annualInterest}</depositEUR>
+        case Deposit(currency) => <deposit>{currency}</deposit>
         case Commodity(ticker) => <commodity>{ticker}</commodity>
         case Cash(currency) => <cash>{currency}</cash>
       }
@@ -54,9 +52,7 @@ object Storage {
     def fromXML(x: xml.NodeSeq): Option[Instrument] =
       x match {
         case <stock>{ticker}</stock> => Some(Stock(ticker.text.trim))
-        case <depositRUB/> => Some(DepositRUB)
-        case <depositUSD>{annualInterest}</depositUSD> => Some(Deposit("USD", annualInterest.text.trim.toDouble))
-        case <depositEUR>{annualInterest}</depositEUR> => Some(Deposit("EUR", annualInterest.text.trim.toDouble))
+        case <deposit>{currency}</deposit> => Some(Deposit(currency.text.trim))
         case <commodity>{ticker}</commodity> => Some(Commodity(ticker.text.trim))
         case <cash>{currency}</cash> => Some(Cash(currency.text.trim))
         case _ => None

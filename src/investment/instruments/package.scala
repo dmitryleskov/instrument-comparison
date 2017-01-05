@@ -17,6 +17,6 @@ package object instruments {
     stocks ++
     commodities :+
     Cash("RUB") :+ Cash("USD") :+ Cash("EUR") :+
-    DepositRUB :+ Deposit("USD", 0.03) :+ Deposit("EUR", 0.02) :+
+    Deposit("RUB") :+ Deposit("USD") :+ Deposit("EUR") :+
     Inflation
 }
