@@ -5,6 +5,7 @@
 package investment
 
 import java.io.FileNotFoundException
+import java.time.YearMonth
 import java.time.temporal.ChronoUnit.MONTHS
 
 import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
@@ -36,22 +37,15 @@ object Main extends JFXApp {
     // Shift serial numbers (1-based) so that Januaries fall on multiples of 12
     val offset = allTimeStats.start.getMonthValue - 2
 
-    val data0 = ObservableBuffer(allTimeStats.inflation map {
-      case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) + 1 + offset, v) })
-    val series0 = XYChart.Series[Number, Number]("Inflation", data0)
-
-    val data1 = ObservableBuffer(allTimeStats.aggregateInvestment map {
-      case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) + 1 + offset, v) })
-    val series1 = XYChart.Series[Number, Number]("Investment", data1)
-
-    val data2 = ObservableBuffer(allTimeStats.portfolioValuations map {
-      case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) +1 + offset, v) })
-    val series2 = XYChart.Series[Number, Number]("Portfolio", data2)
+    def series(name: String, source: Seq[(YearMonth, Double)]) =
+      XYChart.Series[Number, Number](name, ObservableBuffer(source map {
+        case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) + 1 + offset, v)
+      }))
 
     lineChart.getData.clear()
-    lineChart.getData.add(series0)
-    lineChart.getData.add(series1)
-    lineChart.getData.add(series2)
+    lineChart.getData.add(series("Investment", allTimeStats.aggregateInvestment))
+    lineChart.getData.add(series("Inflation", allTimeStats.inflation))
+    lineChart.getData.add(series("Assets Value", allTimeStats.portfolioValuations))
   }
 
   private val _summary = StringProperty("")
