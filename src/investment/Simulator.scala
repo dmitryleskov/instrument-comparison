@@ -21,33 +21,27 @@ class Simulator(val initialAmount: Int,
                 val allocation: AssetAllocation,
                 val rule: InstalmentRule,
                 val strategy: Strategy) {
-
-
   /**
     * Run simulation defined by class parameters for `length` months
     * starting from `start`
     *
     * @param start First calendar month of simulation
-    * @param length Number of months to simulate, including the `start` month
+    * @param duration Number of months to simulate, including the `start` month
     * @return A `Seq` of `Snapshots`
     */
-  def simulate(start: YearMonth, length: Int): List[Snapshot] = {
+  def simulate(start: YearMonth, duration: Int): List[Snapshot] = {
+    val snapshots = new Array[Snapshot](duration)
     val templatePortfolio: Portfolio = allocation.instruments map (Position(_, 0))
     var portfolio = new Split(allocation).invest(1, start, templatePortfolio, initialAmount)
-    val snapshots = ArrayBuffer[Snapshot]()
-    var month = 1
-    var cur: YearMonth = start
-    val reinvest = true
 
-    while (month <= length) {
-      cur = start.plusMonths(month - 1)
+    for (month <- 1 to duration) {
+      val cur = start.plusMonths(month - 1)
       val instalment = rule.instalment(month)
       val income = (for (Position(instrument, amount) <- portfolio) yield
         instrument.yieldPercentage(cur) * instrument.price(cur) * amount).sum
-      portfolio = strategy.invest(month, cur, portfolio, instalment + income)
+      portfolio = strategy.invest(month, cur, portfolio, instalment + income) // TODO: simulation without reinvesting
       val value = (for(Position(instrument, amount) <- portfolio) yield instrument.price(cur) * amount).sum
-      snapshots += Snapshot(serial=month, cur, income, instalment, portfolio, value)
-      month = month + 1
+      snapshots(month - 1) = Snapshot(serial=month, cur, income=income, instalment=instalment, portfolio, value=value)
     }
     snapshots.toList
   }

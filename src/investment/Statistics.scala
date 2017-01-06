@@ -41,12 +41,6 @@ class Statistics(val simulator: Simulator) {
     val absoluteDrawdown: AbsoluteDrawdown = Drawdown.absolute(portfolioValues, inflation)
     val maximumDrawdown0: AbsoluteDrawdown = Drawdown.maximum(portfolioValues)
     val relativeDrawdown0: RelativeDrawdown = Drawdown.relative(portfolioValues)
-
-    if (returnOnInvestment > 10.0) {
-      println("Graal found!!!")
-      println(snapshots)
-    }
-
   }
 
   val start: YearMonth = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.startDate)).max
