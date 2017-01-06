@@ -3,26 +3,103 @@ package investment
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
+import investment.Statistics.{AbsoluteDrawdown, Drawdown, BWML, RelativeDrawdown, Results}
 import investment.data.{AverageSalary, Inflation}
 import investment.instruments.Instrument
 
-import scala.collection.immutable.{IndexedSeq, Seq}
+import scala.collection.immutable.IndexedSeq
 
 class Statistics(val simulator: Simulator) {
+  case class InterimResults(start: YearMonth, duration: Int) {
+    /** Raw simulation results */
+    private val snapshots = simulator.simulate(start, duration)
+    /** Instalments by month */
+    val instalments: List[(YearMonth, Double)] = snapshots map (s => (s.ym, s.instalment))
+    /** Total investments to date */
+    val aggregateInvestment: List[(YearMonth, Double)] =
+      instalments
+        .foldLeft(List((start.minusMonths(1), simulator.initialAmount.toDouble))) { case (acc, (ym, instalment)) => (ym, acc.head._2 + instalment) :: acc }
+        .reverse drop 1
+    /** Inflation baseline */
+    val inflation: List[(YearMonth, Double)] =
+      instalments
+        .foldLeft(List((start.minusMonths(1), simulator.initialAmount.toDouble))) { case (acc, (ym, instalment)) => (ym, (acc.head._2 + instalment) * (1 + Inflation.rates(ym))) :: acc }
+        .reverse drop 1
+    /** Values of all assets */
+    val portfolioValues: List[(YearMonth, Double)] = snapshots map (s => (s.ym, s.value))
 
-  case class Item[T](best: T,
-                     worst: T,
-                     median: T,
-                     last: T) {
+    val totalIncome: Double = snapshots map (_.income) sum
+    val last12MonthsIncome: Double = (snapshots.reverse take 12 map (_.income)) sum
+    val totalInvestment: Double = aggregateInvestment.last._2
+
+    /** Nominal return */
+    val returnOnInvestment0: Double = (portfolioValues.last._2 - totalInvestment) / totalInvestment
+    /** Return adjusted for inflation */
+    val returnOnInvestment: Double = (portfolioValues.last._2 - inflation.last._2) / inflation.last._2
+
+    val absoluteDrawdown0: AbsoluteDrawdown = Drawdown.absolute(portfolioValues, aggregateInvestment)
+    val absoluteDrawdown: AbsoluteDrawdown = Drawdown.absolute(portfolioValues, inflation)
+    val maximumDrawdown0: AbsoluteDrawdown = Drawdown.maximum(portfolioValues)
+    val relativeDrawdown0: RelativeDrawdown = Drawdown.relative(portfolioValues)
+
+    if (returnOnInvestment > 10.0) {
+      println("Graal found!!!")
+      println(snapshots)
+    }
+
+  }
+
+  val start: YearMonth = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.startDate)).max
+  val end: YearMonth = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.endDate)).min
+  val duration: Int = start.until(end, ChronoUnit.MONTHS).toInt + 1
+  val allTime: InterimResults = InterimResults(start, duration)
+
+  private val resultsByPeriod: Map[Int, IndexedSeq[InterimResults]] =
+    (Statistics.periodsOfInterest filter (_ * 12 < duration) map (years =>
+        years ->
+        (for (offset <- 0 to duration - years * 12) yield
+          InterimResults(start.plusMonths(offset), years * 12))
+      )
+    ).toMap
+
+  def bwml[T](rs: IndexedSeq[InterimResults], getKey: InterimResults => T)(implicit ordering: Ordering[T]): BWML[T] = {
+    val biggerIsBetter = false
+    val s = rs.sorted(ordering.on(getKey))
+    BWML(
+      best = getKey(if (biggerIsBetter) s.last else s.head),
+      worst = getKey(if (biggerIsBetter) s.head else s.last),
+      median = getKey(s.apply(s.length / 2)),
+      last = getKey(rs.last)
+    )
+  }
+
+  val byPeriod: Map[Int, Results] =
+    for ((period, r) <- resultsByPeriod) yield
+      period ->
+        Results(
+          returnOnInvestment0 = bwml(r, _.returnOnInvestment0),
+          returnOnInvestment = bwml(r, _.returnOnInvestment),
+          absoluteDrawdown0 = bwml(r, _.absoluteDrawdown0),
+          absoluteDrawdown = bwml(r, _.absoluteDrawdown),
+          maximumDrawdown0 = bwml(r, _.maximumDrawdown0),
+          relativeDrawdown0 = bwml(r, _.relativeDrawdown0)
+        )
+}
+
+object Statistics {
+  case class BWML[+T](best: T,
+                      worst: T,
+                      median: T,
+                      last: T) {
     override def toString = s"Best: $best\nWorst: $worst\nMedian: $median\nLast: $last"
   }
 
-  case class Results(returnOnInvestment0: Item[Double],
-                     returnOnInvestment: Item[Double],
-                     absoluteDrawdown0: Item[AbsoluteDrawdown],
-                     absoluteDrawdown: Item[AbsoluteDrawdown],
-                     maximumDrawdown0: Item[AbsoluteDrawdown],
-                     relativeDrawdown0: Item[RelativeDrawdown]) {
+  case class Results(returnOnInvestment0: BWML[Double],
+                     returnOnInvestment: BWML[Double],
+                     absoluteDrawdown0: BWML[AbsoluteDrawdown],
+                     absoluteDrawdown: BWML[AbsoluteDrawdown],
+                     maximumDrawdown0: BWML[AbsoluteDrawdown],
+                     relativeDrawdown0: BWML[RelativeDrawdown]) {
     override def toString =
       s"""|Return on Investment:
           |$returnOnInvestment0
@@ -56,7 +133,7 @@ class Statistics(val simulator: Simulator) {
 
   implicit object AbsoluteDrawdownOps extends DrawdownOps[AbsoluteDrawdown] {
     override def compare(x: AbsoluteDrawdown, y: AbsoluteDrawdown): Int = x.amount.compare(y.amount)
-    implicit def zero: AbsoluteDrawdown = AbsoluteDrawdown(start, 0.0, 0.0)
+    implicit def zero: AbsoluteDrawdown = AbsoluteDrawdown(Instrument.startDate, 0.0, 0.0)
     implicit def build(minDate: YearMonth, max: Double, min: Double): AbsoluteDrawdown =
       AbsoluteDrawdown(minDate, max - min, (max - min) / max)
   }
@@ -67,7 +144,7 @@ class Statistics(val simulator: Simulator) {
 
   implicit object RelativeDrawdownOps extends DrawdownOps[RelativeDrawdown] {
     override def compare(x: RelativeDrawdown, y: RelativeDrawdown): Int = x.ratio.compare(y.ratio)
-    implicit def zero: RelativeDrawdown = RelativeDrawdown(start, 0.0, 0.0)
+    implicit def zero: RelativeDrawdown = RelativeDrawdown(Instrument.startDate, 0.0, 0.0)
     implicit def build(minDate: YearMonth, max: Double, min: Double): RelativeDrawdown =
       RelativeDrawdown(minDate, (max - min) / max, max - min)
   }
@@ -81,14 +158,14 @@ class Statistics(val simulator: Simulator) {
       }).foldLeft(ops.zero)(ops.max)
 
     private def drawdown[T <: Drawdown](valuations: List[(YearMonth, Double)])
-                           (implicit ops: DrawdownOps[T])= {
+                                       (implicit ops: DrawdownOps[T])= {
       val (lastMax, lastMin, lastMinDate, interim) =
-        (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, start, ops.zero) {
+        (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, valuations.head._1, ops.zero) {
           case (prev@(prevMax, prevMin, prevMinDate, res), (ym, v)) =>
             if (v > prevMax)
               (v, v, ym, ops.max(res, ops.build(prevMinDate, prevMax, prevMin)))
             else
-              if (v < prevMin) (prevMax, v, ym, res)
+            if (v < prevMin) (prevMax, v, ym, res)
             else prev
         }
       if (lastMax > lastMin)
@@ -105,69 +182,5 @@ class Statistics(val simulator: Simulator) {
       drawdown[RelativeDrawdown](valuations)
   }
 
-  class InterimResults(val start: YearMonth, val duration: Int) {
-    private val snapshots = simulator.simulate(start, duration)
-    val instalments: List[(YearMonth, Double)] = snapshots map (s => (s.ym, s.instalment))
-    val aggregateInvestment: List[(YearMonth, Double)] =
-      instalments
-        .foldLeft(List((start.minusMonths(1), simulator.initialAmount.toDouble))) { case (acc, (ym, instalment)) => (ym, acc.head._2 + instalment) :: acc }
-        .reverse drop 1
-    val inflation: List[(YearMonth, Double)] =
-      instalments
-        .foldLeft(List((start.minusMonths(1), simulator.initialAmount.toDouble))) { case (acc, (ym, instalment)) => (ym, (acc.head._2 + instalment) * (1 + Inflation.rates(ym))) :: acc }
-        .reverse drop 1
-    val portfolioValuations: List[(YearMonth, Double)] = snapshots map (s => (s.ym, s.value))
-
-    val totalIncome: Double = snapshots map (_.income) sum
-    val last12MonthsIncome: Double = (snapshots.reverse take 12 map (_.income)) sum
-    val totalInvestment: Double = aggregateInvestment.last._2
-
-    val returnOnInvestment0: Double = (portfolioValuations.last._2 - totalInvestment) / totalInvestment
-    val returnOnInvestment: Double = (portfolioValuations.last._2 - inflation.last._2) / inflation.last._2
-
-    val absoluteDrawdown0: AbsoluteDrawdown = Drawdown.absolute(portfolioValuations, aggregateInvestment)
-    val absoluteDrawdown: AbsoluteDrawdown = Drawdown.absolute(portfolioValuations, inflation)
-    val maximumDrawdown0: AbsoluteDrawdown = Drawdown.maximum(portfolioValuations)
-    val relativeDrawdown0: RelativeDrawdown = Drawdown.relative(portfolioValuations)
-  }
-
-  val start: YearMonth = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.startDate)).max
-  val end: YearMonth = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.endDate)).min
-  val allTime: Int = start.until(end, ChronoUnit.MONTHS).toInt + 1
-  val allTimeStats = new InterimResults(start, allTime)
-
-  private val resultsByInterval: Map[Int, IndexedSeq[InterimResults]] =
-    (Statistics.intervals filter (_ * 12 < allTime) map (years =>
-        years ->
-        (for (offset <- 0 to allTime - years * 12) yield
-          new InterimResults(start.plusMonths(offset), years * 12))
-      )
-    ).toMap
-
-  def compute[T](rs: IndexedSeq[InterimResults], getKey: InterimResults => T)(implicit ordering: Ordering[T]): Item[T] = {
-    val biggerIsBetter = false
-    val s = rs.sorted(ordering.on(getKey))
-    Item(
-      best = getKey(if (biggerIsBetter) s.last else s.head),
-      worst = getKey(if (biggerIsBetter) s.head else s.last),
-      median = getKey(s.apply(s.length / 2)),
-      last = getKey(rs.last)
-    )
-  }
-
-  val statsByInterval: Map[Int, Results] =
-    for ((interval, r) <- resultsByInterval) yield
-      interval ->
-        Results(
-          returnOnInvestment0 = compute(r, _.returnOnInvestment0),
-          returnOnInvestment = compute(r, _.returnOnInvestment),
-          absoluteDrawdown0 = compute(r, _.absoluteDrawdown0),
-          absoluteDrawdown = compute(r, _.absoluteDrawdown),
-          maximumDrawdown0 = compute(r, _.maximumDrawdown0),
-          relativeDrawdown0 = compute(r, _.relativeDrawdown0)
-        )
-}
-
-object Statistics {
-  val intervals = List(1, 3, 5, 10, 15, 20, 30, 40, 50, 60, 75, 100) filter (Instrument.startDate.plusYears(_).isBefore(YearMonth.now()))
+  val periodsOfInterest = List(1, 3, 5, 10, 15, 20, 30, 40, 50, 60, 75, 100) filter (Instrument.startDate.plusYears(_).isBefore(YearMonth.now()))
 }

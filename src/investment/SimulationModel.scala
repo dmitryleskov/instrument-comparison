@@ -91,16 +91,18 @@ object SimulationModel {
         case SalaryPercentage => new SalaryPercentage(start, salaryPercentage.value.toDouble / 100.0)
         //case ew FixedUSDAmount(start, 10.0)
       }
-
-      val simulator = new Simulator(
-        initialAmount,
-        allocation,
-        instalmentRule,
-        strategy)
-      val stats  = new Statistics(simulator)
-      _statistics.value = stats
-      _minYear.value = start.getYear
-      _maxYear.value = end.getYear
+      if (initialAmount != 0 || instalmentRule.instalment(1) != 0) {
+        val simulator = new Simulator(
+          initialAmount,
+          allocation,
+          instalmentRule,
+          strategy)
+        val stats = new Statistics(simulator)
+        _statistics.value = stats
+        _minYear.value = start.getYear
+        _maxYear.value = end.getYear
+      } else
+        _statistics.value = null
     }
   }
 }

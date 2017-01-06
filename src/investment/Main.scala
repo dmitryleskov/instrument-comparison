@@ -10,10 +10,12 @@ import java.time.temporal.ChronoUnit.MONTHS
 
 import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
+import investment.Statistics.{AbsoluteDrawdown, Drawdown, BWML, RelativeDrawdown, Results}
 import investment.instruments.Instrument
 import investment.util.Storage
 import org.xml.sax.SAXParseException
 
+import scala.collection.immutable.IndexedSeq
 import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
@@ -32,27 +34,23 @@ import scalafx.util.StringConverter
 object Main extends JFXApp {
 
   def updateChart: Unit = {
-    val allTimeStats = SimulationModel.statistics.value.allTimeStats
-
-    // Shift serial numbers (1-based) so that Januaries fall on multiples of 12
-    val offset = allTimeStats.start.getMonthValue - 2
-
-    def series(name: String, source: Seq[(YearMonth, Double)]) =
-      XYChart.Series[Number, Number](name, ObservableBuffer(source map {
-        case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) + 1 + offset, v)
-      }))
-
     lineChart.getData.clear()
-    lineChart.getData.add(series("Investment", allTimeStats.aggregateInvestment))
-    lineChart.getData.add(series("Inflation", allTimeStats.inflation))
-    lineChart.getData.add(series("Assets Value", allTimeStats.portfolioValuations))
+    if (SimulationModel.statistics.value != null) {
+      val allTimeStats = SimulationModel.statistics.value.allTime
+
+      // Shift serial numbers (1-based) so that Januaries fall on multiples of 12
+      val offset = allTimeStats.start.getMonthValue - 2
+
+      def series(name: String, source: Seq[(YearMonth, Double)]) =
+        XYChart.Series[Number, Number](name, ObservableBuffer(source map {
+          case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) + 1 + offset, v)
+        }))
+
+      lineChart.getData.add(series("Investment", allTimeStats.aggregateInvestment))
+      lineChart.getData.add(series("Inflation", allTimeStats.inflation))
+      lineChart.getData.add(series("Assets Value", allTimeStats.portfolioValues))
+    }
   }
-
-  private val _summary = StringProperty("")
-  def summary: ReadOnlyStringProperty = _summary
-
-  val stats: Map[Int, StringProperty] = (Statistics.intervals map {case x: Int => (x, StringProperty(""))}).toMap
-
 
   object DisplayStats {
     class DisplayItem(val name: String, private val source: Statistics => String) {
@@ -64,26 +62,71 @@ object Main extends JFXApp {
     }
 
     val items: IndexedSeq[DisplayItem] = IndexedSeq(
-      new DisplayItem("Period", (stats) => stats.allTimeStats.start + " - " + stats.allTimeStats.start.plusMonths(stats.allTimeStats.duration - 1) + " (" + stats.allTimeStats.duration + " months)"),
-      new DisplayItem("Last instalment", (stats) => stats.allTimeStats.instalments.last._2.formatted("%.2f")),
-      new DisplayItem("Portfolio Value", (stats) => stats.allTimeStats.portfolioValuations.last._2.formatted("%.2f")),
-      new DisplayItem("Total Investment", (stats) => stats.allTimeStats.totalInvestment.formatted("%.2f")),
-      new DisplayItem("Total Income", (stats) => stats.allTimeStats.totalIncome.formatted("%.2f")),
-      new DisplayItem("Capital Gain", (stats) => (stats.allTimeStats.portfolioValuations.last._2 - stats.allTimeStats.totalInvestment - stats.allTimeStats.totalIncome).formatted("%.2f")),
-      new DisplayItem("Last 12M Income", (stats) => stats.allTimeStats.last12MonthsIncome.formatted("%.2f")),
-      new DisplayItem("Return", (stats) => (stats.allTimeStats.returnOnInvestment0 * 100).formatted("%.1f%%")),
-      new DisplayItem("Inflation-adjusted Return", (stats) => (stats.allTimeStats.returnOnInvestment * 100).formatted("%.1f%%")),
-      new DisplayItem("Absolute drawdown", (stats) => stats.allTimeStats.absoluteDrawdown0.toString),
-      new DisplayItem("Absolute drawdown (inflation adjusted)", (stats) => stats.allTimeStats.absoluteDrawdown.toString),
-      new DisplayItem("Maximum drawdown", (stats) => stats.allTimeStats.maximumDrawdown0.toString),
-      new DisplayItem("Relative drawdown", (stats) => stats.allTimeStats.relativeDrawdown0.toString)
+      new DisplayItem("Period", (stats) => stats.allTime.start + " - " + stats.allTime.start.plusMonths(stats.allTime.duration - 1) + " (" + stats.allTime.duration + " months)"),
+      new DisplayItem("Last instalment", (stats) => stats.allTime.instalments.last._2.formatted("%.2f")),
+      new DisplayItem("Portfolio Value", (stats) => stats.allTime.portfolioValues.last._2.formatted("%.2f")),
+      new DisplayItem("Total Investment", (stats) => stats.allTime.totalInvestment.formatted("%.2f")),
+      new DisplayItem("Total Income", (stats) => stats.allTime.totalIncome.formatted("%.2f")),
+      new DisplayItem("Capital Gain", (stats) => (stats.allTime.portfolioValues.last._2 - stats.allTime.totalInvestment - stats.allTime.totalIncome).formatted("%.2f")),
+      new DisplayItem("Last 12M Income", (stats) => stats.allTime.last12MonthsIncome.formatted("%.2f")),
+      new DisplayItem("Return", (stats) => (stats.allTime.returnOnInvestment0 * 100).formatted("%.1f%%")),
+      new DisplayItem("Inflation-adjusted Return", (stats) => (stats.allTime.returnOnInvestment * 100).formatted("%.1f%%")),
+      new DisplayItem("Absolute drawdown", (stats) => stats.allTime.absoluteDrawdown0.toString),
+      new DisplayItem("Absolute drawdown (inflation adjusted)", (stats) => stats.allTime.absoluteDrawdown.toString),
+      new DisplayItem("Maximum drawdown", (stats) => stats.allTime.maximumDrawdown0.toString),
+      new DisplayItem("Relative drawdown", (stats) => stats.allTime.relativeDrawdown0.toString)
     )
-  }
 
-  def updateStats: Unit = {
-    for (k <- Statistics.intervals) {
-      stats(k).value = SimulationModel.statistics.value.statsByInterval.getOrElse(k, "").toString
+    trait View[T] {
+      def view(something: T): String
     }
+    implicit object ReturnView extends View[Double] {
+      implicit def view(d: Double): String = f"${d * 100}%.1f%%"
+    }
+    implicit object AbsoluteDrawdownView extends View[AbsoluteDrawdown] {
+      implicit def view(d: AbsoluteDrawdown): String = f"${d.amount}%.2f\n(${d.ratio * 100}%.1f%%)"
+    }
+    implicit object RelativeDrawdownView extends View[RelativeDrawdown] {
+      implicit def view(d: RelativeDrawdown): String = f"${d.ratio * 100}%.1f%%\n(${d.amount}%.2f)"
+    }
+
+    class DisplayBWML[+T](val name: String, private val source: (Statistics) => Option[BWML[T]])(implicit v: View[T]) {
+      private val bestWrapper = ReadOnlyStringWrapper("")
+      val bestProperty: ReadOnlyStringProperty = bestWrapper.readOnlyProperty
+      bestWrapper <== Bindings.createStringBinding(
+        () => source(SimulationModel.statistics.value) map ((x: BWML[T]) => v.view(x.best)) getOrElse "N/A",
+        SimulationModel.statistics)
+      private val worstWrapper = ReadOnlyStringWrapper("")
+      val worstProperty: ReadOnlyStringProperty = worstWrapper.readOnlyProperty
+      worstWrapper <== Bindings.createStringBinding(
+        () => source(SimulationModel.statistics.value) map ((x: BWML[T]) => v.view(x.worst)) getOrElse "N/A",
+        SimulationModel.statistics)
+      private val medianWrapper = ReadOnlyStringWrapper("")
+      val medianProperty: ReadOnlyStringProperty = medianWrapper.readOnlyProperty
+      medianWrapper <== Bindings.createStringBinding(
+        () => source(SimulationModel.statistics.value) map ((x: BWML[T]) => v.view(x.median)) getOrElse "N/A",
+        SimulationModel.statistics)
+      private val lastWrapper = ReadOnlyStringWrapper("")
+      val lastProperty: ReadOnlyStringProperty = lastWrapper.readOnlyProperty
+      lastWrapper <== Bindings.createStringBinding(
+        () => source(SimulationModel.statistics.value) map ((x: BWML[T]) => v.view(x.last)) getOrElse "N/A",
+        SimulationModel.statistics)
+    }
+
+    def statsFor(stats: Statistics, period: Int): Option[Results] =
+      if (stats == null) None else stats.byPeriod.get(period)
+
+    val bwmls =
+      (for (period <- Statistics.periodsOfInterest) yield
+        period ->
+          IndexedSeq(
+            new DisplayBWML[Double]("Return (Nominal)", statsFor(_, period) map (_.returnOnInvestment0)),
+            new DisplayBWML[Double]("Return (Inflation-Adjusted)", statsFor(_, period) map (_.returnOnInvestment)),
+            new DisplayBWML[AbsoluteDrawdown]("Absolute Drawdown (Nominal)", statsFor(_, period) map (_.absoluteDrawdown0)),
+            new DisplayBWML[AbsoluteDrawdown]("Absolute Drawdown (Inflation-Adjusted)", statsFor(_, period) map (_.absoluteDrawdown)),
+            new DisplayBWML[AbsoluteDrawdown]("Maximum Drawdown", statsFor(_, period) map (_.maximumDrawdown0)),
+            new DisplayBWML[RelativeDrawdown]("Relative Drawdown", statsFor(_, period) map (_.relativeDrawdown0))
+          )).toMap
   }
 
   def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
@@ -210,16 +253,43 @@ object Main extends JFXApp {
     )
   }
 
-  for (k <- Statistics.intervals) {
+  for (k <- Statistics.periodsOfInterest) {
     tabpane +=
       new Tab {
         text = s"${k}Y"
         closable = false
-        disable <== stats(k).isEmpty
-        content = new TextArea {
-          editable = false
-          font = new Font("Arial", 14)
-          text <== stats(k)
+        disable <== SimulationModel.statistics.isNull
+        content = new VBox {
+          children = Seq(
+            new GridPane {
+              padding = Insets(15)
+              hgap = 8
+              vgap = 8
+              columnConstraints = Seq(
+                new ColumnConstraints { percentWidth = 25 },
+                new ColumnConstraints { percentWidth = 25 },
+                new ColumnConstraints { percentWidth = 25 },
+                new ColumnConstraints { percentWidth = 25 }
+              )
+              maxWidth = Double.MaxValue
+              for (i <- DisplayStats.bwmls(k).indices;
+                   bwml = DisplayStats.bwmls(k)(i)) {
+                add(new Label {
+                  text = bwml.name
+                  maxWidth = Double.MaxValue
+                  style = "-fx-font-size: 120%"
+                  alignment = javafx.geometry.Pos.CENTER
+                }, 0, i * 2, 4, 1)
+                for ((property, column) <- Seq(bwml.bestProperty, bwml.worstProperty, bwml.medianProperty, bwml.lastProperty).zipWithIndex) {
+                  add(new Label {
+                    text <== property
+                    maxWidth = Double.MaxValue
+                    alignment = javafx.geometry.Pos.CENTER
+                  }, column, i * 2 + 1)
+                }
+              }
+            }
+          )
         }
       }
   }
@@ -233,7 +303,6 @@ object Main extends JFXApp {
     children = chart
   }
 
-
   stage = new PrimaryStage {
     title = "Instrument Comparison"
     scene = new Scene(800, 600) {
@@ -242,7 +311,6 @@ object Main extends JFXApp {
   }
 
   SimulationModel.statistics.onChange(updateChart)
-  SimulationModel.statistics.onChange(updateStats)
 
   val settings = try {
     xml.XML.load(".portfolio")
