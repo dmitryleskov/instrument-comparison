@@ -38,20 +38,9 @@ class Simulator(val initialAmount: Int,
     var month = 1
     var cur: YearMonth = start
     val reinvest = true
-    val allSplits = (for (Position(stock: Stock, _) <- portfolio;
-                          (date, factor) <- stock.splits)
-                     yield date -> (stock, factor)
-                    ) groupBy (_._1)
-
 
     while (month <= length) {
       cur = start.plusMonths(month - 1)
-      if (allSplits contains cur) {
-        // Map[Stock, Double] inferred by default, so need explicit type
-        val splits: Map[Instrument, Double] = allSplits(cur).toMap.values.toMap
-        portfolio = for (Position(instrument, amount) <- portfolio)
-                    yield Position(instrument, amount * splits.getOrElse(instrument, 1.0))
-      }
       val instalment = rule.instalment(month)
       val income = (for (Position(instrument, amount) <- portfolio) yield
         instrument.yieldPercentage(cur) * instrument.price(cur) * amount).sum

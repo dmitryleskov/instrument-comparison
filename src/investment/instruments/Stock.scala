@@ -10,12 +10,23 @@ import scala.collection.mutable
 
 case class Stock(ticker: String) extends Instrument {
   private val dateFormat = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")
-  private val (open: Map[YearMonth, Double],
-  high: Map[YearMonth, Double],
-  low: Map[YearMonth, Double],
-  close: Map[YearMonth, Double]
-  ) = {
 
+  private val splits: Map[YearMonth, Double] = {
+    val splits = mutable.HashMap[YearMonth, Double]()
+    try {
+      for (values <- new CSVFile("data/" + ticker + "-splits.csv"))
+        splits(YearMonth.parse(values(0), dateFormat)) = values(1).toDouble
+    } catch {
+      case fnf: FileNotFoundException => ()
+    }
+    Map() ++ splits
+  }
+
+  private val (open: Map[YearMonth, Double],
+               high: Map[YearMonth, Double],
+               low: Map[YearMonth, Double],
+               close: Map[YearMonth, Double]
+               ) = {
     val quotesFile = new CSVFile("data/" + ticker + ".csv")
     val open = mutable.HashMap[YearMonth, Double]()
     val high = mutable.HashMap[YearMonth, Double]()
@@ -23,10 +34,13 @@ case class Stock(ticker: String) extends Instrument {
     val close = mutable.HashMap[YearMonth, Double]()
     for (values <- quotesFile) {
       val ym = YearMonth.parse(values(2), dateFormat)
-      open(ym) = values(4).toDouble
-      high(ym) = values(5).toDouble
-      low(ym) = values(6).toDouble
-      close(ym) = values(7).toDouble
+      val splitFactor = splits
+        .filter { case (splitYM, _) => splitYM.isAfter(ym) }
+        .foldLeft (1.0) { case (acc, (_, splitFactor)) => acc / splitFactor }
+      open(ym) = values(4).toDouble * splitFactor
+      high(ym) = values(5).toDouble * splitFactor
+      low(ym) = values(6).toDouble * splitFactor
+      close(ym) = values(7).toDouble * splitFactor
       assert(high(ym) >= low(ym))
       assert(high(ym) >= open(ym))
       assert(high(ym) >= close(ym))
@@ -36,6 +50,7 @@ case class Stock(ticker: String) extends Instrument {
     (Map() ++ open, Map() ++ high, Map() ++ low, Map() ++ close)
   }
 
+  /** Dividends already account for splits */
   private val dividends: Map[YearMonth, Double] = {
     val dividendsFile = new CSVFile("data/" + ticker + "-dividends.csv")
     val dividends = mutable.HashMap[YearMonth, Double]()
@@ -48,16 +63,6 @@ case class Stock(ticker: String) extends Instrument {
     Map() ++ dividends
   }
 
-  val splits: Map[YearMonth, Double] = {
-    val splits = mutable.HashMap[YearMonth, Double]()
-    try {
-      for (values <- new CSVFile("data/" + ticker + "-splits.csv"))
-        splits(YearMonth.parse(values(0), dateFormat)) = values(1).toDouble
-    } catch {
-      case fnf: FileNotFoundException => ()
-    }
-    Map() ++ splits
-  }
 
   override def toString = ticker
 
