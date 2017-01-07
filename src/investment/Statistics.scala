@@ -87,11 +87,10 @@ class Statistics(val simulator: Simulator) {
     ).toMap
 
   def bwml[T](rs: IndexedSeq[InterimResults], getKey: InterimResults => T)(implicit ordering: Ordering[T]): BWML[T] = {
-    val biggerIsBetter = false
     val s = rs.sorted(ordering.on(getKey))
     BWML(
-      best = getKey(if (biggerIsBetter) s.last else s.head),
-      worst = getKey(if (biggerIsBetter) s.head else s.last),
+      best = getKey(s.last),
+      worst = getKey(s.head),
       median = getKey(s.apply(s.length / 2)),
       last = getKey(rs.last)
     )
@@ -162,25 +161,25 @@ object Statistics {
   }
 
   case class AbsoluteDrawdown(date: YearMonth, amount: Double, ratio: Double) extends Drawdown {
-    override def toString = if (amount > 0) f"$amount%.2f (${ratio * 100}%.1f%%) $date" else "0.00"
+    override def toString = if (amount < 0) f"$amount%.2f (${ratio * 100}%.1f%%) $date" else "0.00"
   }
 
   implicit object AbsoluteDrawdownOps extends DrawdownOps[AbsoluteDrawdown] {
     override def compare(x: AbsoluteDrawdown, y: AbsoluteDrawdown): Int = x.amount.compare(y.amount)
     implicit def zero: AbsoluteDrawdown = AbsoluteDrawdown(Instrument.startDate, 0.0, 0.0)
     implicit def build(minDate: YearMonth, max: Double, min: Double): AbsoluteDrawdown =
-      AbsoluteDrawdown(minDate, max - min, (max - min) / max)
+      AbsoluteDrawdown(minDate, min - max, (min - max) / max)
   }
 
   case class RelativeDrawdown(date: YearMonth, ratio: Double, amount: Double) extends Drawdown {
-    override def toString = if (ratio > 0) f"${ratio * 100}%.1f%% ($amount%.2f) $date" else "0.0%"
+    override def toString = if (ratio < 0) f"${ratio * 100}%.1f%% ($amount%.2f) $date" else "0.0%"
   }
 
   implicit object RelativeDrawdownOps extends DrawdownOps[RelativeDrawdown] {
     override def compare(x: RelativeDrawdown, y: RelativeDrawdown): Int = x.ratio.compare(y.ratio)
     implicit def zero: RelativeDrawdown = RelativeDrawdown(Instrument.startDate, 0.0, 0.0)
     implicit def build(minDate: YearMonth, max: Double, min: Double): RelativeDrawdown =
-      RelativeDrawdown(minDate, (max - min) / max, max - min)
+      RelativeDrawdown(minDate, (min - max) / max, min - max)
   }
 
   object Drawdown {
@@ -189,7 +188,7 @@ object Statistics {
                                     (implicit ops: DrawdownOps[AbsoluteDrawdown])=
       ((valuations zip baseline) map {
         case ((ymv, v), (ymb, b)) if ymv == ymb => ops.build(ymv, b, v)
-      }).foldLeft(ops.zero)(ops.max)
+      }).foldLeft(ops.zero)(ops.min)
 
     private def drawdown[T <: Drawdown](valuations: List[(YearMonth, Double)])
                                        (implicit ops: DrawdownOps[T])= {
@@ -197,13 +196,13 @@ object Statistics {
         (valuations drop 1).foldLeft(valuations.head._2, valuations.head._2, valuations.head._1, ops.zero) {
           case (prev@(prevMax, prevMin, prevMinDate, res), (ym, v)) =>
             if (v > prevMax)
-              (v, v, ym, ops.max(res, ops.build(prevMinDate, prevMax, prevMin)))
+              (v, v, ym, ops.min(res, ops.build(prevMinDate, prevMax, prevMin)))
             else
             if (v < prevMin) (prevMax, v, ym, res)
             else prev
         }
       if (lastMax > lastMin)
-        ops.max(interim, ops.build(valuations.last._1, lastMax, lastMin))
+        ops.min(interim, ops.build(valuations.last._1, lastMax, lastMin))
       else interim
     }
 
