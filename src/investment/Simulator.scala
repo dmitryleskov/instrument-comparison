@@ -36,7 +36,7 @@ class Simulator(val initialAmount: Int,
 
     for (month <- 1 to duration) {
       val cur = start.plusMonths(month - 1)
-      val instalment = rule.instalment(month)
+      val instalment = rule.instalment(start, month)
       val income = (for (Position(instrument, amount) <- portfolio) yield
         instrument.yieldPercentage(cur) * instrument.price(cur) * amount).sum
       portfolio = strategy.invest(month, cur, portfolio, instalment + income) // TODO: simulation without reinvesting

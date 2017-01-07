@@ -43,7 +43,7 @@ object Test extends App {
         allocation,
         //      new InflationAdjusted(start.plusMonths(d), 1000.0),
         //        new AnnualIncrease(start.plusMonths(d), 1000.0, 1.05),
-        new FixedAmount(start.plusMonths(d), 1000.0),
+        new FixedAmount(1000.0),
         //      new AllToFirst)
       //  new Split(allocation))
             new BalanceGradually(allocation))

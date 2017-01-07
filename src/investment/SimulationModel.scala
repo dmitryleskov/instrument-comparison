@@ -87,13 +87,13 @@ object SimulationModel {
         case RebalanceAnnually => new RebalanceAnnually(allocation)
       }
       val instalmentRule = instalmentRuleId.value match {
-        case FixedAmount => new FixedAmount(start, initialInstalment.value)
-        case AnnualIncrease => new AnnualIncrease(start, initialInstalment.value, 1.05)
-        case InflationAdjusted => new InflationAdjusted(start, initialInstalment.value)
-        case SalaryPercentage => new SalaryPercentage(start, salaryPercentage.value.toDouble / 100.0)
+        case FixedAmount => new FixedAmount(initialInstalment.value)
+        case AnnualIncrease => new AnnualIncrease(initialInstalment.value, 1.05)
+        case InflationAdjusted => new InflationAdjusted(initialInstalment.value)
+        case SalaryPercentage => new SalaryPercentage(salaryPercentage.value.toDouble / 100.0)
         //case ew FixedUSDAmount(start, 10.0)
       }
-      if (initialAmount != 0 || instalmentRule.instalment(1) != 0) {
+      if (initialAmount != 0 || instalmentRule.instalment(start, 1) != 0) {
         val simulator = new Simulator(
           initialAmount,
           allocation,
