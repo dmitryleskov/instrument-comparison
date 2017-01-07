@@ -4,20 +4,22 @@
 
 package investment
 
+import java.time.YearMonth
+
 import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted, SalaryPercentage}
 import investment.SimulationModel.StrategyID._
 import investment.data.{AverageSalary, Inflation}
+import investment.instruments.Instrument
 
-import scalafx.beans.property.{IntegerProperty, ObjectProperty, ReadOnlyIntegerProperty, ReadOnlyObjectProperty}
+import scalafx.beans.property._
 
 object SimulationModel {
-  private val _minYear = IntegerProperty(2006)
-  def minYear: ReadOnlyIntegerProperty = _minYear
-  private val _maxYear = IntegerProperty(2016)
-  def maxYear: ReadOnlyIntegerProperty = _maxYear
-
-  private val _statistics = ObjectProperty[Statistics](this, "statistics")
-  val statistics: ReadOnlyObjectProperty[Statistics] = _statistics
+  private val _minYear = ReadOnlyIntegerWrapper(Instrument.startDate.getYear)
+  val minYear: ReadOnlyIntegerProperty = _minYear.readOnlyProperty
+  private val _maxYear = ReadOnlyIntegerWrapper(YearMonth.now.getYear)
+  val maxYear: ReadOnlyIntegerProperty = _maxYear.readOnlyProperty
+  private val _statistics = ReadOnlyObjectWrapper[Statistics](null: Statistics)
+  val statistics: ReadOnlyObjectProperty[Statistics] = _statistics.readOnlyProperty
 
   sealed abstract class StrategyID
   object StrategyID {
