@@ -3,7 +3,7 @@ package investment
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
-import investment.Statistics.{AbsoluteDrawdown, BWML, Drawdown, RelativeDrawdown, Results}
+import investment.Statistics.{AbsoluteDrawdown, AbsoluteDrawdownOps, BWML, Drawdown, Measure, RelativeDrawdown, Results}
 import investment.data.{AverageSalary, Inflation}
 import investment.instruments.Instrument
 
@@ -100,18 +100,17 @@ class Statistics(val simulator: Simulator) {
     for ((period, r) <- resultsByPeriod) yield
       period ->
         Results(
-          returnOnInvestment0 = bwml(r, _.returnOnInvestment0),
-          returnOnInvestment = bwml(r, _.returnOnInvestment),
-          absoluteDrawdown0 = bwml(r, _.absoluteDrawdown0),
-          absoluteDrawdown = bwml(r, _.absoluteDrawdown),
-          maximumDrawdown0 = bwml(r, _.maximumDrawdown0),
-          maximumDrawdown = bwml(r, _.maximumDrawdown),
-          relativeDrawdown0 = bwml(r, _.relativeDrawdown0),
-          relativeDrawdown = bwml(r, _.relativeDrawdown)
+          returnOnInvestment = Measure(nominal = bwml(r, _.returnOnInvestment0), adjusted = bwml(r, _.returnOnInvestment)),
+          absoluteDrawdown = Measure(nominal = bwml(r, _.absoluteDrawdown0), adjusted = bwml(r, _.absoluteDrawdown)),
+          maximumDrawdown = Measure(nominal = bwml(r, _.maximumDrawdown0), adjusted = bwml(r, _.maximumDrawdown)),
+          relativeDrawdown = Measure(nominal = bwml(r, _.relativeDrawdown0), adjusted = bwml(r, _.relativeDrawdown))
         )
 }
 
 object Statistics {
+  case class Measure[+T](nominal: T,  // Nominal value(s)
+                         adjusted: T) // Same values adjusted for inflation
+
   case class BWML[+T](best: T,
                       worst: T,
                       median: T,
@@ -119,37 +118,21 @@ object Statistics {
     override def toString = s"Best: $best\nWorst: $worst\nMedian: $median\nLast: $last"
   }
 
-  case class Results(returnOnInvestment0: BWML[Double],
-                     returnOnInvestment: BWML[Double],
-                     absoluteDrawdown0: BWML[AbsoluteDrawdown],
-                     absoluteDrawdown: BWML[AbsoluteDrawdown],
-                     maximumDrawdown0: BWML[AbsoluteDrawdown],
-                     maximumDrawdown: BWML[AbsoluteDrawdown],
-                     relativeDrawdown0: BWML[RelativeDrawdown],
-                     relativeDrawdown: BWML[RelativeDrawdown]) {
+  case class Results(returnOnInvestment: Measure[BWML[Double]],
+                     absoluteDrawdown: Measure[BWML[AbsoluteDrawdown]],
+                     maximumDrawdown: Measure[BWML[AbsoluteDrawdown]],
+                     relativeDrawdown: Measure[BWML[RelativeDrawdown]]) {
     override def toString =
       s"""|Return on Investment:
-          |$returnOnInvestment0
-          |
-          |Return on Investment (Inflation-Adjusted):
           |$returnOnInvestment
           |
           |Absolute Drawdown:
-          |$absoluteDrawdown0
-          |
-          |Absolute Drawdown (Inflation-Adjusted):
           |$absoluteDrawdown
           |
           |Maximum Drawdown:
-          |$maximumDrawdown0
-          |
-          |Maximum Drawdown (Inflation-Adjusted):
           |$maximumDrawdown
           |
           |Relative Drawdown:
-          |$relativeDrawdown0
-          |
-          |Relative Drawdown (Inflation-Adjusted):
           |$relativeDrawdown""".stripMargin
   }
 

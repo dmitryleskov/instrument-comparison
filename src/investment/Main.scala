@@ -10,7 +10,7 @@ import java.time.temporal.ChronoUnit.MONTHS
 
 import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
-import investment.Statistics.{AbsoluteDrawdown, BWML, RelativeDrawdown, Results}
+import investment.Statistics.{AbsoluteDrawdown, BWML, Measure, RelativeDrawdown, Results}
 import investment.instruments.Instrument
 import investment.util.Storage
 import org.xml.sax.SAXParseException
@@ -100,44 +100,36 @@ object Main extends JFXApp {
       implicit def view(d: RelativeDrawdown): String = f"${d.ratio * 100}%.1f%%\n(${d.amount}%.2f)"
     }
 
-    class DisplayBWML[+T](val name: String, private val source: (Statistics) => Option[BWML[T]])(implicit v: View[T]) {
-      private val bestWrapper = ReadOnlyStringWrapper("")
-      val bestProperty: ReadOnlyStringProperty = bestWrapper.readOnlyProperty
-      bestWrapper <== Bindings.createStringBinding(
-        () => source(SimulationModel.statistics.value) map ((x: BWML[T]) => v.view(x.best)) getOrElse "N/A",
-        SimulationModel.statistics)
-      private val worstWrapper = ReadOnlyStringWrapper("")
-      val worstProperty: ReadOnlyStringProperty = worstWrapper.readOnlyProperty
-      worstWrapper <== Bindings.createStringBinding(
-        () => source(SimulationModel.statistics.value) map ((x: BWML[T]) => v.view(x.worst)) getOrElse "N/A",
-        SimulationModel.statistics)
-      private val medianWrapper = ReadOnlyStringWrapper("")
-      val medianProperty: ReadOnlyStringProperty = medianWrapper.readOnlyProperty
-      medianWrapper <== Bindings.createStringBinding(
-        () => source(SimulationModel.statistics.value) map ((x: BWML[T]) => v.view(x.median)) getOrElse "N/A",
-        SimulationModel.statistics)
-      private val lastWrapper = ReadOnlyStringWrapper("")
-      val lastProperty: ReadOnlyStringProperty = lastWrapper.readOnlyProperty
-      lastWrapper <== Bindings.createStringBinding(
-        () => source(SimulationModel.statistics.value) map ((x: BWML[T]) => v.view(x.last)) getOrElse "N/A",
-        SimulationModel.statistics)
+    class DisplayMeasure[+T](val name: String, private val source: (Statistics) => Option[Measure[BWML[T]]])(implicit v: View[T]) {
+      private def createMeasureProperty(extract: Measure[BWML[T]] => String): ReadOnlyStringProperty = {
+        val wrapper = ReadOnlyStringWrapper("")
+        val property: ReadOnlyStringProperty = wrapper.readOnlyProperty
+        wrapper <== Bindings.createStringBinding(
+          () => source(SimulationModel.statistics.value) map extract getOrElse "N/A",
+          SimulationModel.statistics)
+        property
+      }
+      val adjustedBest: ReadOnlyStringProperty = createMeasureProperty((measure) => v.view(measure.adjusted.best))
+      val adjustedWorst: ReadOnlyStringProperty = createMeasureProperty((measure) => v.view(measure.adjusted.worst))
+      val adjustedMedian: ReadOnlyStringProperty = createMeasureProperty((measure) => v.view(measure.adjusted.median))
+      val adjustedLast: ReadOnlyStringProperty = createMeasureProperty((measure) => v.view(measure.adjusted.last))
+      val nominalBest: ReadOnlyStringProperty = createMeasureProperty((measure) => v.view(measure.nominal.best))
+      val nominalWorst: ReadOnlyStringProperty = createMeasureProperty((measure) => v.view(measure.nominal.worst))
+      val nominalMedian: ReadOnlyStringProperty = createMeasureProperty((measure) => v.view(measure.nominal.median))
+      val nominalLast: ReadOnlyStringProperty = createMeasureProperty((measure) => v.view(measure.nominal.last))
     }
 
-    def statsFor(stats: Statistics, period: Int): Option[Results] =
+    private def measuresFor(stats: Statistics, period: Int): Option[Results] =
       if (stats == null) None else stats.byPeriod.get(period)
 
-    val bwmls =
+    val measures: Map[Int, IndexedSeq[DisplayMeasure[Any]]] =
       (for (period <- Statistics.periodsOfInterest) yield
         period ->
           IndexedSeq(
-            new DisplayBWML[Double]("Return (Nominal)", statsFor(_, period) map (_.returnOnInvestment0)),
-            new DisplayBWML[Double]("Return (Inflation-Adjusted)", statsFor(_, period) map (_.returnOnInvestment)),
-            new DisplayBWML[AbsoluteDrawdown]("Absolute Drawdown (Nominal)", statsFor(_, period) map (_.absoluteDrawdown0)),
-            new DisplayBWML[AbsoluteDrawdown]("Absolute Drawdown (Inflation-Adjusted)", statsFor(_, period) map (_.absoluteDrawdown)),
-            new DisplayBWML[AbsoluteDrawdown]("Maximum Drawdown", statsFor(_, period) map (_.maximumDrawdown0)),
-            new DisplayBWML[AbsoluteDrawdown]("Maximum Drawdown (Inflation-Adjusted)", statsFor(_, period) map (_.maximumDrawdown)),
-            new DisplayBWML[RelativeDrawdown]("Relative Drawdown", statsFor(_, period) map (_.relativeDrawdown0)),
-            new DisplayBWML[RelativeDrawdown]("Relative Drawdown (Inflation-Adjusted)", statsFor(_, period) map (_.relativeDrawdown))
+            new DisplayMeasure[Double]("Return", measuresFor(_, period) map (_.returnOnInvestment)),
+            new DisplayMeasure[AbsoluteDrawdown]("Absolute Drawdown", measuresFor(_, period) map (_.absoluteDrawdown)),
+            new DisplayMeasure[AbsoluteDrawdown]("Maximum Drawdown", measuresFor(_, period) map (_.maximumDrawdown)),
+            new DisplayMeasure[RelativeDrawdown]("Relative Drawdown", measuresFor(_, period) map (_.relativeDrawdown))
           )).toMap
   }
 
@@ -155,7 +147,7 @@ object Main extends JFXApp {
       })
     }
 
-  def addVBox: Node =
+  def controls: Node =
     new VBox {
       padding = Insets(15)
       spacing = 10
@@ -266,10 +258,10 @@ object Main extends JFXApp {
     )
   }
 
-  for (k <- Statistics.periodsOfInterest) {
+  for (period <- Statistics.periodsOfInterest) {
     tabpane +=
       new Tab {
-        text = s"${k}Y"
+        text = s"${period}Y"
         closable = false
         disable <== SimulationModel.statistics.isNull
         content = new VBox {
@@ -285,20 +277,40 @@ object Main extends JFXApp {
                 new ColumnConstraints { percentWidth = 25 }
               )
               maxWidth = Double.MaxValue
-              for (i <- DisplayStats.bwmls(k).indices;
-                   bwml = DisplayStats.bwmls(k)(i)) {
+              for ((measure, i) <- DisplayStats.measures(period) zipWithIndex) {
                 add(new Label {
-                  text = bwml.name
+                  text = measure.name
                   maxWidth = Double.MaxValue
-                  style = "-fx-font-size: 120%"
+                  style = "-fx-font-weight: bold; -fx-font-size: 120%"
                   alignment = javafx.geometry.Pos.CENTER
-                }, 0, i * 2, 4, 1)
-                for ((property, column) <- Seq(bwml.bestProperty, bwml.worstProperty, bwml.medianProperty, bwml.lastProperty).zipWithIndex) {
+                }, 0, i * 3, 4, 1)
+                for ((title, column) <- Seq("Best", "Worst", "Median", "Last") zipWithIndex) {
+                  add(new Label {
+                    text = title
+                    maxWidth = Double.MaxValue
+                    alignment = javafx.geometry.Pos.CENTER
+                    textAlignment = javafx.scene.text.TextAlignment.CENTER
+                  }, column, i * 3 + 1)
+                }
+                for ((property, column) <- Seq(measure.nominalBest, measure.nominalWorst, measure.nominalMedian, measure.nominalLast).zipWithIndex) {
                   add(new Label {
                     text <== property
                     maxWidth = Double.MaxValue
+                    style = "-fx-font-size: 120%"
                     alignment = javafx.geometry.Pos.CENTER
-                  }, column, i * 2 + 1)
+                    textAlignment = javafx.scene.text.TextAlignment.CENTER
+                    visible <== !adjustForInflation
+                  }, column, i * 3 + 2)
+                }
+                for ((property, column) <- Seq(measure.adjustedBest, measure.adjustedWorst, measure.adjustedMedian, measure.adjustedLast).zipWithIndex) {
+                  add(new Label {
+                    text <== property
+                    maxWidth = Double.MaxValue
+                    style = "-fx-font-size: 120%"
+                    alignment = javafx.geometry.Pos.CENTER
+                    textAlignment = javafx.scene.text.TextAlignment.CENTER
+                    visible <== adjustForInflation
+                  }, column, i * 3 + 2)
                 }
               }
             }
@@ -308,7 +320,7 @@ object Main extends JFXApp {
   }
 
   val chart = new BorderPane {
-    left = addVBox
+    left = controls
     center = new VBox {
       alignment = javafx.geometry.Pos.CENTER
       children = Seq(
