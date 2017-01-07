@@ -54,17 +54,18 @@ sealed abstract class Strategy (allocation: AssetAllocation) {
       val mostOverweight = shareDeviations.max.instrument
       val deficit = values(mostOverweight) / desiredAllocation(mostOverweight) - portfolioValue(ym, portfolio)
       // deficit is how much must be invested in the rest of the portfolio in order to match desiredAllocation
-
-      val instalmentAllocation =
-        new FixedAllocation((shareDeviations map (d => (d.instrument, Math.sqrt(shareDeviations.max.delta - d.delta)))).toMap)
-
       val (balancer, extra) =
         if (deficit < instalment)
           (deficit, Some(instalment - deficit))
         else
           (instalment, None)
 
-      val interimPortfolio = new Split(instalmentAllocation).invest(month, ym, portfolio, balancer)
+      val interimPortfolio = if (balancer > 0.01) {
+        val instalmentAllocation =
+          new FixedAllocation((shareDeviations map (d => (d.instrument, Math.sqrt(shareDeviations.max.delta - d.delta)))).toMap)
+        new Split(instalmentAllocation).invest(month, ym, portfolio, balancer)
+      } else portfolio
+
       assert(portfolioValue(ym, portfolio) + balancer - portfolioValue(ym, interimPortfolio) < 1e-5)
 
       val newPortfolio =
