@@ -10,7 +10,7 @@ import java.time.temporal.ChronoUnit.MONTHS
 
 import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
-import investment.Statistics.{AbsoluteDrawdown, Drawdown, BWML, RelativeDrawdown, Results}
+import investment.Statistics.{AbsoluteDrawdown, BWML, RelativeDrawdown, Results}
 import investment.instruments.Instrument
 import investment.util.Storage
 import org.xml.sax.SAXParseException
@@ -20,18 +20,20 @@ import scalafx.Includes._
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.beans.binding.Bindings
-import scalafx.beans.property.{IntegerProperty, ReadOnlyStringProperty, ReadOnlyStringWrapper, StringProperty}
+import scalafx.beans.property._
 import scalafx.collections.ObservableBuffer
 import scalafx.event.ActionEvent
 import scalafx.geometry.Insets
 import scalafx.scene.chart.{LineChart, NumberAxis, XYChart}
 import scalafx.scene.control._
 import scalafx.scene.layout._
-import scalafx.scene.text.Font
 import scalafx.scene.{Node, Scene}
 import scalafx.util.StringConverter
 
 object Main extends JFXApp {
+
+  val adjustForInflation = BooleanProperty(false)
+  adjustForInflation.onChange(updateChart)
 
   def updateChart: Unit = {
     lineChart.getData.clear()
@@ -46,9 +48,15 @@ object Main extends JFXApp {
           case (ym, v) => XYChart.Data[Number, Number](allTimeStats.start.until(ym, MONTHS) + 1 + offset, v)
         }))
 
-      lineChart.getData.add(series("Investment", allTimeStats.aggregateInvestment))
-      lineChart.getData.add(series("Inflation", allTimeStats.inflation))
-      lineChart.getData.add(series("Assets Value", allTimeStats.portfolioValues))
+      if (adjustForInflation.value) {
+        lineChart.getData.add(series("Investment (deflated)", allTimeStats.aggregateInvestment))
+        lineChart.getData.add(series("Inflation (deflated)", allTimeStats.inflation))
+        lineChart.getData.add(series("Assets Value (deflated)", allTimeStats.portfolioValues))
+      } else {
+        lineChart.getData.add(series("Investment", allTimeStats.aggregateInvestment0))
+        lineChart.getData.add(series("Inflation", allTimeStats.inflation0))
+        lineChart.getData.add(series("Assets Value", allTimeStats.portfolioValues0))
+      }
     }
   }
 
@@ -63,18 +71,20 @@ object Main extends JFXApp {
 
     val items: IndexedSeq[DisplayItem] = IndexedSeq(
       new DisplayItem("Period", (stats) => stats.allTime.start + " - " + stats.allTime.start.plusMonths(stats.allTime.duration - 1) + " (" + stats.allTime.duration + " months)"),
-      new DisplayItem("Last instalment", (stats) => stats.allTime.instalments.last._2.formatted("%.2f")),
-      new DisplayItem("Portfolio Value", (stats) => stats.allTime.portfolioValues.last._2.formatted("%.2f")),
+      new DisplayItem("Last instalment", (stats) => stats.allTime.instalments0.last._2.formatted("%.2f")),
+      new DisplayItem("Portfolio Value", (stats) => stats.allTime.portfolioValues0.last._2.formatted("%.2f")),
       new DisplayItem("Total Investment", (stats) => stats.allTime.totalInvestment.formatted("%.2f")),
       new DisplayItem("Total Income", (stats) => stats.allTime.totalIncome.formatted("%.2f")),
-      new DisplayItem("Capital Gain", (stats) => (stats.allTime.portfolioValues.last._2 - stats.allTime.totalInvestment - stats.allTime.totalIncome).formatted("%.2f")),
+      new DisplayItem("Capital Gain", (stats) => (stats.allTime.portfolioValues0.last._2 - stats.allTime.totalInvestment - stats.allTime.totalIncome).formatted("%.2f")),
       new DisplayItem("Last 12M Income", (stats) => stats.allTime.last12MonthsIncome.formatted("%.2f")),
       new DisplayItem("Return", (stats) => (stats.allTime.returnOnInvestment0 * 100).formatted("%.1f%%")),
       new DisplayItem("Inflation-adjusted Return", (stats) => (stats.allTime.returnOnInvestment * 100).formatted("%.1f%%")),
       new DisplayItem("Absolute drawdown", (stats) => stats.allTime.absoluteDrawdown0.toString),
       new DisplayItem("Absolute drawdown (inflation adjusted)", (stats) => stats.allTime.absoluteDrawdown.toString),
       new DisplayItem("Maximum drawdown", (stats) => stats.allTime.maximumDrawdown0.toString),
-      new DisplayItem("Relative drawdown", (stats) => stats.allTime.relativeDrawdown0.toString)
+      new DisplayItem("Maximum drawdown (inflation adjusted)", (stats) => stats.allTime.maximumDrawdown.toString),
+      new DisplayItem("Relative drawdown", (stats) => stats.allTime.relativeDrawdown0.toString),
+      new DisplayItem("Relative drawdown (inflation adjusted)", (stats) => stats.allTime.relativeDrawdown.toString)
     )
 
     trait View[T] {
@@ -125,7 +135,9 @@ object Main extends JFXApp {
             new DisplayBWML[AbsoluteDrawdown]("Absolute Drawdown (Nominal)", statsFor(_, period) map (_.absoluteDrawdown0)),
             new DisplayBWML[AbsoluteDrawdown]("Absolute Drawdown (Inflation-Adjusted)", statsFor(_, period) map (_.absoluteDrawdown)),
             new DisplayBWML[AbsoluteDrawdown]("Maximum Drawdown", statsFor(_, period) map (_.maximumDrawdown0)),
-            new DisplayBWML[RelativeDrawdown]("Relative Drawdown", statsFor(_, period) map (_.relativeDrawdown0))
+            new DisplayBWML[AbsoluteDrawdown]("Maximum Drawdown (Inflation-Adjusted)", statsFor(_, period) map (_.maximumDrawdown)),
+            new DisplayBWML[RelativeDrawdown]("Relative Drawdown", statsFor(_, period) map (_.relativeDrawdown0)),
+            new DisplayBWML[RelativeDrawdown]("Relative Drawdown (Inflation-Adjusted)", statsFor(_, period) map (_.relativeDrawdown))
           )).toMap
   }
 
@@ -216,6 +228,7 @@ object Main extends JFXApp {
   }
 
   val tabpane = new TabPane {
+    vgrow = Priority.Always
     tabs = Seq(
       new Tab {
         text = "Chart"
@@ -296,7 +309,18 @@ object Main extends JFXApp {
 
   val chart = new BorderPane {
     left = addVBox
-    center = tabpane
+    center = new VBox {
+      alignment = javafx.geometry.Pos.CENTER
+      children = Seq(
+        tabpane,
+        new CheckBox {
+          padding = Insets(0, 0, 15, 0)
+          alignment = javafx.geometry.Pos.CENTER
+          text = "Adjust for inflation"
+          selected <==> adjustForInflation
+        }
+      )
+    }
   }
 
   val rootNode = new StackPane {
