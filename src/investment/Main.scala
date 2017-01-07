@@ -139,12 +139,10 @@ object Main extends JFXApp {
       textFormatter = new TextFormatter(
         javafx.scene.control.TextFormatter.IDENTITY_STRING_CONVERTER,
         bindTo.value.toString, { change => if (change.text.matches("[0-9]*")) change else null }) {}
-      val binding = Bindings.createIntegerBinding(
-        () => {if (text.value.isEmpty) 0 else text.value.toInt},
-        text)
-      focused.onChange({ (_, _, newVal) => if (!newVal)
-        bindTo.value = binding.intValue
-      })
+      // Only update the underlying property when losing focus (this also avoids the infinite loop)
+      // TODO: Also update when the users pauses typing for, say, 0.5s
+      focused.onChange { (_, _, newVal) => if (!newVal) bindTo.value = text.value.toInt }
+      bindTo.onChange { (_, _, newVal) => text = newVal.toString }
     }
 
   def controls: Node =
