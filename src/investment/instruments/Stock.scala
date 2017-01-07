@@ -1,8 +1,8 @@
 package investment.instruments
 
 import java.io.FileNotFoundException
+import java.time.Month.JANUARY
 import java.time.YearMonth
-import java.time.temporal.ChronoUnit
 
 import investment.util.CSVFile
 
@@ -52,11 +52,12 @@ case class Stock(ticker: String) extends Instrument {
 
   /** Dividends already account for splits */
   private val dividends: Map[YearMonth, Double] = {
+    def dividendTaxRate(ym: YearMonth) = if (ym.isBefore(YearMonth.of(2015, JANUARY))) 0.09 else 0.13
     val dividendsFile = new CSVFile("data/" + ticker + "-dividends.csv")
     val dividends = mutable.HashMap[YearMonth, Double]()
     for (values <- dividendsFile) {
       val ym = YearMonth.parse(values(0), dateFormat)
-      val amount = values(1).toDouble
+      val amount = values(1).toDouble * (1.0 - dividendTaxRate(ym))
       // Dividends for two periods may have the same ex-date, see e.g. MGNT 2009, 2011-12
       dividends(ym) = dividends.getOrElse(ym, 0.0) + amount
     }
