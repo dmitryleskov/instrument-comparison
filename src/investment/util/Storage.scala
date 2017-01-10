@@ -4,14 +4,12 @@
 
 package investment.util
 
+import investment.AllocationModel.DateRange
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
 import investment.instruments.{Deposit, _}
 
-import scala.xml.NodeSeq
+import scala.xml.{Elem, NodeSeq}
 
-/**
-  * Created by snowman on 22.12.2016.
-  */
 object Storage {
 
   trait Serializer[T] {
@@ -19,8 +17,19 @@ object Storage {
     def fromXML(x: xml.NodeSeq): Option[T]
   }
 
+  implicit object DateRangeSerializer extends Serializer[DateRange] {
+    override def toXML(r: DateRange): NodeSeq = <dateRange>{r}</dateRange>
+
+    override def fromXML(x: NodeSeq): Option[DateRange] =
+      x match {
+        case <dateRange>{r}</dateRange> =>
+          DateRange.values.collectFirst({ case v if r.text == v.toString => v })
+        case _ => None
+      }
+  }
+
   implicit object InstalmentRuleIDSerializer extends Serializer[InstalmentRuleID] {
-    def toXML(sid: InstalmentRuleID) = <instalmentRuleID>{sid}</instalmentRuleID>
+    def toXML(sid: InstalmentRuleID): Elem = <instalmentRuleID>{sid}</instalmentRuleID>
 
     def fromXML(x: xml.NodeSeq): Option[InstalmentRuleID] =
       x match {
@@ -30,7 +39,7 @@ object Storage {
       }
   }
   implicit object StrategyIDSerializer extends Serializer[StrategyID] {
-    def toXML(sid: StrategyID) = <strategyID>{sid}</strategyID>
+    def toXML(sid: StrategyID): Elem = <strategyID>{sid}</strategyID>
 
     def fromXML(x: xml.NodeSeq): Option[StrategyID] =
       x match {
@@ -41,7 +50,7 @@ object Storage {
   }
 
   implicit object InstrumentSerializer extends Serializer[Instrument] {
-    def toXML(i: Instrument): xml.Elem =
+    def toXML(i: Instrument): Elem =
       i match {
         case s: Stock => <stock>{s.ticker}</stock>
         case Deposit(currency) => <deposit>{currency}</deposit>
@@ -59,11 +68,8 @@ object Storage {
       }
   }
 
-  //    implicit def iterableStorage[T](implicit elemStorage: Storage[T]) =
-  //      new Storage[Iterable[T]] {
-
   implicit object AllocationSerializer extends Serializer[List[(Instrument, Int)]] {
-    def toXML(allocation: List[(Instrument, Int)]): xml.Elem =
+    def toXML(allocation: List[(Instrument, Int)]): Elem =
       <allocation>
         {for ((instrument, weight) <- allocation)
         yield <position>
@@ -71,7 +77,6 @@ object Storage {
           <weight>{weight}</weight>
         </position>}
       </allocation>
-
 
     def fromXML(allocationXML: NodeSeq): Option[List[(Instrument, Int)]] = {
       allocationXML match {

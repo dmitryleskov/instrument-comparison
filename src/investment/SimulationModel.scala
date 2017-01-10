@@ -47,6 +47,9 @@ object SimulationModel {
     val values = Seq(RUB, USD)
   }
 
+  val minStartDate = ObjectProperty[YearMonth](this, "minStartDate", Instrument.startDate)
+  minStartDate.onChange(updateResults)
+
   val initialAmount = IntegerProperty(0)
   initialAmount.onChange(updateResults)
 
@@ -75,10 +78,6 @@ object SimulationModel {
     if (allocation == null || strategyId.value == null || instalmentRuleId.value == null) {
       _statistics.value = null
     } else {
-      val start = ((Inflation :: AverageSalary :: allocation.instruments) map (_.startDate)).max
-      val end = ((Inflation :: AverageSalary :: allocation.instruments) map (_.endDate)).min
-      println(start, end)
-
       val strategy = strategyId.value match {
         case Split => new Split(allocation)
         case BalanceGradually => new BalanceGradually(allocation)
@@ -93,16 +92,16 @@ object SimulationModel {
         case SalaryPercentage => new SalaryPercentage(salaryPercentage.value.toDouble / 100.0)
         //case ew FixedUSDAmount(start, 10.0)
       }
-      if (initialAmount != 0 || instalmentRule.instalment(start, 1) != 0) {
+      if (initialAmount != 0 || instalmentRule.instalment(minStartDate.value, 1) != 0) {
         val simulator = new Simulator(
           initialAmount,
           allocation,
           instalmentRule,
           strategy)
-        val stats = new Statistics(simulator)
+        val stats = new Statistics(minStartDate.value, simulator)
         _statistics.value = stats
-        _minYear.value = start.getYear
-        _maxYear.value = end.getYear
+        _minYear.value = stats.start.getYear
+        _maxYear.value = stats.end.getYear
       } else
         _statistics.value = null
     }

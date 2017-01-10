@@ -5,7 +5,13 @@ import java.time.temporal.ChronoUnit
 
 import investment.instruments._
 
+import scala.collection.immutable.IndexedSeq
+
 object Test extends App {
+  val byStartDate = instruments.all groupBy {_.startDate}
+  val sortedStartDates = (byStartDate.keys).toIndexedSeq.sorted
+  for(d <- sortedStartDates) println(d + ": " + byStartDate(d))
+
 //  val gazp = Stock("GAZP")
   val gmkn = Stock("GMKN")
   val lkoh = Stock("LKOH")

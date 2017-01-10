@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2017 Dmitry Leskov. All rights reserved.
+ */
+
 package investment
 
 import java.time.YearMonth
@@ -9,7 +13,7 @@ import investment.instruments.Instrument
 
 import scala.collection.immutable.{IndexedSeq, Seq}
 
-class Statistics(val simulator: Simulator) {
+class Statistics(val minStartDate: YearMonth, val simulator: Simulator) {
   case class InterimResults(start: YearMonth, duration: Int) {
     private val dateRange: IndexedSeq[YearMonth] = (0 until duration) map { start.plusMonths(_) }
     /** Deflation factors (the trailing 1.0 will become handy when calculating {@code portfolioValues}) */
@@ -47,6 +51,8 @@ class Statistics(val simulator: Simulator) {
         .reverse drop 1
     val inflation: List[(YearMonth, Double)] = inflation0 zip (deflators drop 1) map { case ((ym, v), d) => (ym, v * d) }
 
+    // FIXME: inflation is basically the same series as aggregateInvestment
+
     /** Nominal values of all assets */
     val portfolioValues0: List[(YearMonth, Double)] = snapshots map (s => (s.ym, s.value))
 
@@ -73,7 +79,7 @@ class Statistics(val simulator: Simulator) {
     val relativeDrawdown: RelativeDrawdown = Drawdown.relative(portfolioValues)
   }
 
-  val start: YearMonth = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.startDate)).max
+  val start: YearMonth = (minStartDate :: ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.startDate))).max
   val end: YearMonth = ((Inflation :: AverageSalary :: simulator.allocation.instruments) map (_.endDate)).min
   val duration: Int = start.until(end, ChronoUnit.MONTHS).toInt + 1
   val allTime: InterimResults = InterimResults(start, duration)

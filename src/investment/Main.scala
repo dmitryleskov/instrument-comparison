@@ -8,6 +8,7 @@ import java.io.FileNotFoundException
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit.MONTHS
 
+import investment.AllocationModel.DateRange
 import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
 import investment.Statistics.{AbsoluteDrawdown, BWML, Measure, RelativeDrawdown, Results}
@@ -385,16 +386,31 @@ object Main extends JFXApp {
         case None => println("Settings file found, but allocation not loaded"); List.empty
       }
     }
+  val dateRange =
+    (settings \ "dateRange").headOption.collect { case node =>
+      Storage.fromXML[DateRange](node) match {
+        case Some(range) => println("Date Range loaded: " + range)
+          AllocationModel.dateRange.value = range
+        case None => println("Date range not loaded")
+      }
+    }
 
-  val allocationModel = new AllocationModel(allocation.getOrElse(List.empty))
-  val alllocationEditor = AllocationEditor.init(allocationModel, () => {
-    SimulationModel.allocationProperty.value = new FixedAllocation(allocationModel.get.toMap)
+  AllocationModel.init(allocation.getOrElse(List.empty))
+  val alllocationEditor = AllocationEditor.init(() => {
+    SimulationModel.allocationProperty.value =
+      if (AllocationModel.length > 0) new FixedAllocation(AllocationModel.get.toMap)
+      else null
+    SimulationModel.minStartDate.value =
+      if (AllocationModel.length > 0)
+        AllocationModel.availableInstruments map (_.startDate) reduce ((ym1, ym2) => if (ym1.isAfter(ym2)) ym1 else ym2)
+      else Instrument.startDate
     rootNode.children = chart
   })
 
   override def stopApp = {
     val x = <settings>
-      {if (allocationModel.length > 0) Storage.toXML(allocationModel.getWeights)}
+      {Storage.toXML(AllocationModel.dateRange.value)}
+      {if (AllocationModel.length > 0) Storage.toXML(AllocationModel.getWeights)}
       <initialAmount>{SimulationModel.initialAmount.value}</initialAmount>
       <initialInstalment>{SimulationModel.initialInstalment.value}</initialInstalment>
       {Storage.toXML(SimulationModel.instalmentRuleId.value)}
