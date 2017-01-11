@@ -219,6 +219,7 @@ object Main extends JFXApp {
   }
 
   val tabpane = new TabPane {
+    val maxPeriod = IntegerProperty(0)
     vgrow = Priority.Always
     tabs = Seq(
       new Tab {
@@ -262,7 +263,7 @@ object Main extends JFXApp {
       new Tab {
         text = s"${period}Y"
         closable = false
-        disable <== SimulationModel.statistics.isNull
+        disable <== tabpane.maxPeriod < period
         content = new VBox {
           children = Seq(
             new GridPane {
@@ -345,7 +346,12 @@ object Main extends JFXApp {
     }
   }
 
-  SimulationModel.statistics.onChange(updateChart)
+  SimulationModel.statistics.onChange {
+    updateChart
+    tabpane.maxPeriod.value =
+      if (SimulationModel.statistics == null) 0
+      else SimulationModel.statistics.value.byPeriod.keys.max
+  }
 
   val settings = try {
     xml.XML.load(".portfolio")

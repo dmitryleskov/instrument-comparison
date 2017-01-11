@@ -15,8 +15,8 @@ package object instruments {
   val stocks: Seq[Stock] = for (ticker <- Seq("ALRS", "GAZP", "LKOH", "NVTK", "GMKN", "MGNT", "MOEX", "MTSS",
     "ROSN", "SBER", "SBERP", "SNGSP", "VTBR")
   ) yield Stock(ticker)
-//  val etfs = for (ticker <- Seq("FXRL", "FXRB", "FXRU", "FXGD")) yield Stock(ticker)
-  val all: Seq[Instrument] = cash ++ deposits ++ stocks ++ commodities :+ Inflation
+  val etfs = for (ticker <- Seq("FXMM", "FXRL", "FXRB", "FXRU", "FXGD")) yield Stock(ticker)
+  val all: Seq[Instrument] = cash ++ deposits ++ commodities ++ stocks ++ etfs :+ Inflation
 
   /** The earliest date for which data for <em>at least one</em> instrument is available */
   val minStartDate: YearMonth = Seq(Instrument.startDate, (instruments.all map (_.startDate)) min) max
