@@ -4,7 +4,6 @@
 
 package investment
 
-import java.time.YearMonth
 import java.time.temporal.ChronoUnit.YEARS
 import javafx.scene.chart.PieChart
 
@@ -15,14 +14,11 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scalafx.Includes._
 import scalafx.beans.property.{BooleanProperty, ObjectProperty}
-import scalafx.collections.{ObservableArray, ObservableBuffer, ObservableSet}
+import scalafx.collections.{ObservableBuffer, ObservableSet}
 import scalafx.event.ActionEvent
-import scalafx.geometry.{HPos, Insets, Pos}
 import scalafx.scene.Node
 import scalafx.scene.control._
 import scalafx.scene.layout._
-import scalafx.scene.text.Font
-import scalafx.util.StringConverter
 
 object AllocationModel {
   sealed abstract class DateRange
@@ -129,6 +125,18 @@ object AllocationEditor {
 
     val chartData = ObservableBuffer[PieChart.Data]()
 
+    AllocationModel.onChange {
+      case Insert(pos, instrument, weight) =>
+        chartData.insert(pos, new PieChart.Data(instrument.toString, weight))
+      case ChangeInstrument(pos, newInstrument) =>
+        chartData.insert(pos, new PieChart.Data(newInstrument.toString, chartData(pos).pieValue()))
+        chartData.remove(pos + 1)
+      case ChangeWeight(pos, newWeight) =>
+        chartData(pos).pieValue = newWeight
+      case Remove(pos) =>
+        chartData.remove(pos)
+    }
+
     class AllocationItemSelector {
       def this (_instrument: Instrument, _weight: Int) = {
         this
@@ -136,14 +144,16 @@ object AllocationEditor {
         weight.valueFactory.value.value = _weight
       }
       val instrument = new ChoiceBox[Instrument] {
+        maxWidth = Double.MaxValue
         items = ObservableBuffer(instruments.all)
-        margin = Insets(5, 5, 5, 0)
 
         // This is a workaround for the following problem:
-        // When the very first ChoiceBox's list of items gets changed in focused.onChange()
-        // that ChoiceBox gets resized to minimal width as if there were no items,
+        // When the very first ChoiceBox gets focus for the first time
+        // and has its list of items changed in refreshMyItems() (the items.value.remove(0, drop) line),
+        // it gets resized to minimal width as if there were no items,
         // and even loses focus if the mouse ends up being outside it
-        width.onChange({if (width.value > minWidth.value) minWidth = width.value})
+        // In fact, removing a single item seems to cause such effect.
+        width.onChange ((_, oldValue, newValue) => if (oldValue.doubleValue <= 0.0) minWidth = newValue.doubleValue)
 
         def refreshMyItems() = {
           val selected = AllocationModel.getInstruments.toSet
@@ -174,8 +184,8 @@ object AllocationEditor {
       }
       // Spinner requires Java 8u40!!!
       val weight: Spinner[Int] = new Spinner[Int](1, 10, 1) {
-        maxWidth = 75
         styleClass += Spinner.StyleClassSplitArrowsHorizontal
+        styleClass += "weight"
         disable = true
         value.onChange { (_, _, newWeight) => AllocationModel.update(instrument.value(), newWeight) }
       }
@@ -189,7 +199,7 @@ object AllocationEditor {
 
     val selectors = mutable.Buffer[AllocationItemSelector]()
 
-    def addSelector_common(grid: GridPane, selector: AllocationItemSelector, pos: Int): Unit = {
+    def addSelectorCommon(grid: GridPane, selector: AllocationItemSelector, pos: Int): Unit = {
       grid.add(selector.instrument, 0, pos)
       grid.add(selector.weight, 1, pos)
       grid.add(selector.delete, 1, pos)
@@ -197,10 +207,10 @@ object AllocationEditor {
     }
 
     def addEmptySelector(grid: GridPane): Unit =
-      addSelector_common(grid, new AllocationItemSelector, AllocationModel.length + 1)
+      addSelectorCommon(grid, new AllocationItemSelector, AllocationModel.length)
 
     def addSelector(grid: GridPane, pos: Int, instrument: Instrument, weight: Int): Unit =
-      addSelector_common(grid, new AllocationItemSelector(instrument, weight), pos)
+      addSelectorCommon(grid, new AllocationItemSelector(instrument, weight), pos)
 
     def removeSelector(grid: GridPane, pos: Int): Unit = {
       val selector = selectors(pos)
@@ -216,7 +226,7 @@ object AllocationEditor {
 
     val deleteMode = BooleanProperty(false)
 
-    deleteMode.onChange({
+    deleteMode.onChange {
       val delete = deleteMode.value
       for(selector <- selectors) {
         val empty = selector.instrument.value.value == null
@@ -224,33 +234,19 @@ object AllocationEditor {
         selector.weight.visible = !delete || empty
         selector.delete.visible = delete && !empty
       }
-    })
-
-    AllocationModel.onChange {
-      case Insert(pos, instrument, weight) =>
-        chartData.insert(pos, new PieChart.Data(instrument.toString, weight))
-      case ChangeInstrument(pos, newInstrument) =>
-        chartData.insert(pos, new PieChart.Data(newInstrument.toString, chartData(pos).pieValue()))
-        chartData.remove(pos + 1)
-      case ChangeWeight(pos, newWeight) =>
-        chartData(pos).pieValue = newWeight
-      case Remove(pos) =>
-        chartData.remove(pos)
     }
 
-    val grid = new GridPane() {
-      padding = Insets(10, 0, 10, 0)
-      style = "-fx-border-width: 1 0; -fx-border-color: grey"
-    }
+    val grid = new GridPane() { styleClass += "control-grid" }
+
     availableInstruments.onChange((set, change) => change match {
       case ObservableSet.Remove(instrument) => AllocationModel.remove(instrument)
       case _ => ()
     })
 
-
-
     val border = new BorderPane {
       left = new VBox {
+        styleClass += "controls"
+        hgrow = Priority.Never
         val doneButton = new Button("Done") {
           style = "-fx-font-weight: bold"
           onAction = (e: ActionEvent) => {
@@ -281,20 +277,17 @@ object AllocationEditor {
           // remove instrument from all boxes
           case ChangeInstrument(pos, newInstrument) => ()
           case ChangeWeight(pos, newWeight) => ()
-          case Remove(pos) =>
-            removeSelector(grid, pos)
+          case Remove(pos) => removeSelector(grid, pos)
         }
         children = Seq(
-          new HBox {
-            children = Seq(doneButton, new Region {hgrow = Priority.Always}, filterBox)
-          },
+          new HBox { children = Seq(doneButton, new Region {hgrow = Priority.Always}, filterBox) },
           grid,
           deleteButton)
-        spacing = 10
-        padding = Insets(5)
-        alignment = Pos.TopCenter
       }
-      center = new PieChart(chartData)
+      center = new PieChart(chartData) {
+        hgrow = Priority.Always
+        maxWidth(Double.MaxValue)
+      }
     }
 
     AllocationModel.getWeights.zipWithIndex.foreach {

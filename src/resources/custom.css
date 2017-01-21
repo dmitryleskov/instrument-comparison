@@ -1,0 +1,75 @@
+.controls {
+  -fx-padding: 1em;
+  -fx-spacing: 1em;
+  -fx-alignment: top-center;
+}
+
+#deflate {
+  -fx-padding: 0 0 1em 0;
+  -fx-alignment: center;
+}
+
+.control-grid {
+  -fx-padding: 0.5em 0 0.5em 0;
+  -fx-hgap: 0.5em;
+  -fx-vgap: 0.5em;
+  -fx-border-width: 1 0;
+  -fx-border-color: grey;
+}
+
+.instrument {
+  -fx-padding: 0.5em 0.5em 0.5em 0;
+}
+
+.weight {
+  -fx-pref-width: 6em;
+  -fx-max-width: 6em;
+}
+
+/*
+
+.tab-pane > .tab-header-area {
+  -fx-background-color: #ffffcc;
+  -fx-min-height: 0;
+  -fx-pref-height: -1;
+}
+
+.tab-pane > .tab-header-area > .headers-region {
+  -fx-background-color: #ffccff;
+}
+.tab-pane > .tab-header-area > .tab-header-background {
+  -fx-background-color: #ffccff;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab {
+  -fx-background-color: #ccffff;
+  -fx-height: 3em;
+}
+.tab  .tab-label {
+  -fx-text-fill: #ff0000;
+}
+
+.tab-pane > .tab-header-area > .tab > .tab-label {
+  -fx-font-size: 0.75em;
+}
+
+.tab {
+  -fx-font-size: 0.5em;
+
+}
+
+.tab-container {
+  -fx-background-color: #ffffcc;
+  -fx-border-width: 1px;
+  -fx-border-color: red;
+  -fx-font-size: 5em;
+}
+
+.tab > * {
+  -fx-background-color: #ffcccc;
+}
+
+.tab > * > * {
+  -fx-background-color: #ccffcc;
+}
+*/

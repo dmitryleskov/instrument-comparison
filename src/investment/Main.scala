@@ -29,10 +29,10 @@ import scalafx.scene.chart.{LineChart, NumberAxis, XYChart}
 import scalafx.scene.control._
 import scalafx.scene.layout._
 import scalafx.scene.{Node, Scene}
+import scalafx.stage.Screen
 import scalafx.util.StringConverter
 
 object Main extends JFXApp {
-
   val adjustForInflation = BooleanProperty(false)
   adjustForInflation.onChange(updateChart)
 
@@ -134,9 +134,10 @@ object Main extends JFXApp {
           )).toMap
   }
 
-  def intField(_maxWidth: Int, bindTo: IntegerProperty): TextField =
+  def intField(_id: String, bindTo: IntegerProperty): TextField =
     new TextField {
-      maxWidth = _maxWidth
+      id = _id
+      alignment = javafx.geometry.Pos.CENTER_RIGHT
       textFormatter = new TextFormatter(
         javafx.scene.control.TextFormatter.IDENTITY_STRING_CONVERTER,
         bindTo.value.toString, { change => if (change.text.matches("[0-9]*")) change else null }) {}
@@ -148,16 +149,17 @@ object Main extends JFXApp {
 
   def controls: Node =
     new VBox {
-      padding = Insets(15)
-      spacing = 10
+      styleClass += "controls"
       children = List(
         new Button("Edit Allocation") {
           onAction = (e: ActionEvent) => {rootNode.children = alllocationEditor}
+          maxWidth = Double.MaxValue
         },
         new Label("Initial Amount"),
-        intField(100, SimulationModel.initialAmount),
+        intField("initial-amount", SimulationModel.initialAmount),
         new Label("Instalments"),
         new ChoiceBox[InstalmentRuleID] {
+          maxWidth = Double.MaxValue
           items = ObservableBuffer(InstalmentRuleID.values)
           value <==> SimulationModel.instalmentRuleId
         },
@@ -170,7 +172,7 @@ object Main extends JFXApp {
                 new Label("Initial Instalment") {
                   visible <== SimulationModel.instalmentRuleId =!= SalaryPercentage
                 }, {
-                  val ii = intField(100, SimulationModel.initialInstalment)
+                  val ii = intField("initial-instalment", SimulationModel.initialInstalment)
                   ii.disable <== SimulationModel.instalmentRuleId === SalaryPercentage
                   ii
                 })
@@ -180,8 +182,7 @@ object Main extends JFXApp {
               visible <== SimulationModel.instalmentRuleId === SalaryPercentage
               children = List(
                 {
-                  val sp = intField(40, SimulationModel.salaryPercentage)
-                  sp.alignment = javafx.geometry.Pos.CENTER_RIGHT
+                  val sp = intField("salary-percentage", SimulationModel.salaryPercentage)
                   sp.disable <== SimulationModel.instalmentRuleId =!= SalaryPercentage
                   sp
                 },
@@ -192,6 +193,7 @@ object Main extends JFXApp {
         },
         new Label("Strategy"),
         new ChoiceBox[StrategyID] {
+          maxWidth = Double.MaxValue
           items = ObservableBuffer(StrategyID.values)
           value <==> SimulationModel.strategyId
         }
@@ -326,8 +328,7 @@ object Main extends JFXApp {
       children = Seq(
         tabpane,
         new CheckBox {
-          padding = Insets(0, 0, 15, 0)
-          alignment = javafx.geometry.Pos.CENTER
+          id = "deflate"
           text = "Adjust for inflation"
           selected <==> adjustForInflation
         }
@@ -339,10 +340,32 @@ object Main extends JFXApp {
     children = chart
   }
 
+  case class Letterbox(boxWidth: Double, boxHeight: Double) {
+    def fit(width: Double, height: Double): (Double, Double) = {
+      val scale = (boxWidth / width) min (boxHeight / height) min 1.0
+      (width * scale, height * scale)
+    }
+  }
+
+  val screen = Screen.primary
+
+  val visualBoundsFactor =
+    (screen.visualBounds.width / screen.bounds.width) min
+    (screen.visualBounds.height / screen.bounds.height)
+  val letterbox = Letterbox(screen.bounds.width * visualBoundsFactor, screen.bounds.height * visualBoundsFactor)
+  val screenAspectRatio = screen.bounds.width / screen.bounds.height
+
   stage = new PrimaryStage {
     title = "Instrument Comparison"
-    scene = new Scene(800, 600) {
+    private val (initWidth, initHeight) = letterbox.fit(600 * screenAspectRatio, 600)
+    scene = new Scene(initWidth, initHeight) {
       root = rootNode
+      minWidth = initWidth
+      minHeight = initHeight
+      height.onChange {
+        rootNode.style = f"-fx-font-size: ${12*stage.height.value/600}%.0fpx"
+      }
+      stylesheets.add("file:src/resources/custom.css")
     }
   }
 
