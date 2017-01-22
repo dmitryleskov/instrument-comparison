@@ -27,6 +27,24 @@
 }
 
 /*
+.chart {
+  -fx-create-symbols: false;
+}
+*/
+
+.chart-line-symbol {
+    -fx-background-insets: 0, 0.166667em;
+    -fx-padding: 0.4166667em;
+    -fx-shape: "M-5,0 A5,5 0 1 0 5,0 A5,5 0 1 0 -5,0 Z";
+}
+
+
+.chart-series-line {
+  -fx-stroke-width: 0.25em;
+}
+
+
+/*
 
 .tab-pane > .tab-header-area {
   -fx-background-color: #ffffcc;
