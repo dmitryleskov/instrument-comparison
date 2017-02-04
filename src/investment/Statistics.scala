@@ -20,6 +20,7 @@ class Statistics(val minStartDate: YearMonth, val simulator: Simulator) {
     private val deflators: Seq[Double] = dateRange
       .map { Inflation.rates(_) }
       .foldRight (List(1.0)) { case (x, acc) => (1.0 + x) * acc.head :: acc }
+
     /** Raw simulation results */
     private val snapshots = simulator.simulate(start, duration)
 
@@ -33,15 +34,13 @@ class Statistics(val minStartDate: YearMonth, val simulator: Simulator) {
     /** Nominal total investments to date */
     val aggregateInvestment0: List[(YearMonth, Double)] =
       instalments0
-        .foldLeft(List((start.minusMonths(1), simulator.initialAmount.toDouble))) { case (acc, (ym, instalment)) => (ym, acc.head._2 + instalment) :: acc }
+        .foldLeft(List((start.minusMonths(1), simulator.initialAmount.toDouble)))
+          { case (acc, (ym, instalment)) => (ym, acc.head._2 + instalment) :: acc }
         .reverse drop 1
 
     /** Real total investments to date */
     val aggregateInvestment: List[(YearMonth, Double)] =
-      instalments
-        .foldLeft(List((start.minusMonths(1), simulator.initialAmount.toDouble * deflators.head)))
-          { case (acc, (ym, instalment)) => (ym, acc.head._2 + instalment) :: acc }
-        .reverse drop 1
+      (aggregateInvestment0 zip (deflators drop 1)) map { case ((ym, i), d) => (ym, i * d) }
 
     /** Inflation baseline */
     val inflation0: List[(YearMonth, Double)] =
@@ -50,8 +49,6 @@ class Statistics(val minStartDate: YearMonth, val simulator: Simulator) {
           { case (acc, (ym, instalment)) => (ym, (acc.head._2 + instalment) * (1 + Inflation.rates(ym))) :: acc }
         .reverse drop 1
     val inflation: List[(YearMonth, Double)] = inflation0 zip (deflators drop 1) map { case ((ym, v), d) => (ym, v * d) }
-
-    // FIXME: inflation is basically the same series as aggregateInvestment
 
     /** Nominal values of all assets */
     val portfolioValues0: List[(YearMonth, Double)] = snapshots map (s => (s.ym, s.value))
@@ -62,14 +59,17 @@ class Statistics(val minStartDate: YearMonth, val simulator: Simulator) {
     val portfolioValues: List[(YearMonth, Double)] =
       portfolioValues0 zip (deflators drop 1) map { case ((ym, v), d) => (ym, v * d) }
 
-    val totalIncome: Double = snapshots map (_.income) sum
+    val totalIncome0: Double = snapshots map (_.income) sum
+    val totalIncome: Double = snapshots map (_.income) zip deflators map { case (v, d) => v * d } sum
+
     val last12MonthsIncome: Double = (snapshots.reverse take 12 map (_.income)) sum
-    val totalInvestment: Double = aggregateInvestment0.last._2
+    val totalInvestment0: Double = aggregateInvestment0.last._2
+    val totalInvestment: Double = aggregateInvestment.last._2
 
     /** Nominal return */
-    val returnOnInvestment0: Double = (portfolioValues0.last._2 - totalInvestment) / totalInvestment
+    val returnOnInvestment0: Double = (portfolioValues0.last._2 - totalInvestment0) / totalInvestment0
     /** Return adjusted for inflation */
-    val returnOnInvestment: Double = (portfolioValues0.last._2 - inflation0.last._2) / inflation0.last._2
+    val returnOnInvestment: Double = (portfolioValues.last._2 - inflation0.last._2) / inflation0.last._2
 
     val absoluteDrawdown0: AbsoluteDrawdown = Drawdown.absolute(portfolioValues0, aggregateInvestment0)
     val absoluteDrawdown: AbsoluteDrawdown = Drawdown.absolute(portfolioValues0, inflation0)
