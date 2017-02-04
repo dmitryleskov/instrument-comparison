@@ -8,7 +8,6 @@ import java.time.YearMonth
 
 import investment.SimulationModel.InstalmentRuleID.{AnnualIncrease, FixedAmount, InflationAdjusted, SalaryPercentage}
 import investment.SimulationModel.StrategyID._
-import investment.data.{AverageSalary, Inflation}
 import investment.instruments.Instrument
 
 import scalafx.beans.property._
@@ -72,12 +71,12 @@ object SimulationModel {
   strategyId.onChange(updateResults)
 
   private def updateResults() = {
-    println("Updating results")
     val initialAmount = SimulationModel.initialAmount.value
     val allocation = allocationProperty.value
     if (allocation == null || strategyId.value == null || instalmentRuleId.value == null) {
       _statistics.value = null
     } else {
+      println("Updating results")
       val strategy = strategyId.value match {
         case Split => new Split(allocation)
         case BalanceGradually => new BalanceGradually(allocation)

@@ -4,6 +4,7 @@
 
 package investment
 
+import java.time.YearMonth
 import java.time.temporal.ChronoUnit.YEARS
 import javafx.scene.chart.PieChart
 
@@ -13,7 +14,7 @@ import investment.instruments.Instrument
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scalafx.Includes._
-import scalafx.beans.property.{BooleanProperty, ObjectProperty}
+import scalafx.beans.property.{ReadOnlyObjectWrapper, _}
 import scalafx.collections.{ObservableBuffer, ObservableSet}
 import scalafx.event.ActionEvent
 import scalafx.scene.Node
@@ -32,6 +33,7 @@ object AllocationModel {
     case object All extends DateRange
     val values: Seq[DateRange] = OldestOnly :: (Statistics.periodsOfInterest.reverse map AtLeast) ++ Seq(All)
   }
+
   val dateRange: ObjectProperty[DateRange] = ObjectProperty(this, "filter", All)
 
   val availableInstruments: ObservableSet[Instrument] = ObservableSet(instruments.all)
@@ -64,12 +66,13 @@ object AllocationModel {
     if (index >= 0) Some(index) else None
   }
 
-  def init(newAllocation: List[(Instrument, Int)]): Unit = {
+  def init(newAllocation: List[(Instrument, Int)], _dateRange: DateRange): Unit = {
     allocation map (_._1) foreach remove
     newAllocation foreach {case (i, w) => append(i, w)}
+    dateRange.value = _dateRange
+    updateProperties()
   }
 
-  def get = (for (p <- allocation) yield (p._1, p._2.toDouble)).toList
   def getWeights = allocation.toList
   def getInstruments = (for (p <- allocation) yield p._1).toList
 
@@ -116,6 +119,18 @@ object AllocationModel {
         notify(Remove(index))
       case None => ()
     }
+
+  private val minStartDateWrapper = ReadOnlyObjectWrapper[YearMonth](Instrument.startDate)
+  val minStartDate: ReadOnlyObjectProperty[YearMonth] = minStartDateWrapper.readOnlyProperty
+  private val allocationWrapper = ReadOnlyObjectWrapper[List[(Instrument, Double)]](null: List[(Instrument, Double)])
+  val allocationProperty: ReadOnlyObjectProperty[List[(Instrument, Double)]] = allocationWrapper.readOnlyProperty
+  def updateProperties(): Unit = {
+    println("Updating properties")
+    minStartDateWrapper.value =
+      availableInstruments map (_.startDate) reduce ((ym1, ym2) => if (ym1.isAfter(ym2)) ym1 else ym2)
+    allocationWrapper.value =
+      (for (p <- allocation) yield (p._1, p._2.toDouble)).toList
+  }
 }
 
 object AllocationEditor {
@@ -252,8 +267,10 @@ object AllocationEditor {
           onAction = (e: ActionEvent) => {
             if (deleteMode.value)
               deleteMode.value = false
-            else
+            else {
+              AllocationModel.updateProperties()
               done()
+            }
           }
         }
 

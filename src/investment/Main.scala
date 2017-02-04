@@ -400,11 +400,17 @@ object Main extends JFXApp {
     }
   }
 
-  SimulationModel.statistics.onChange {
+  SimulationModel.statistics.onChange { (_, _, newStatistics) =>
     updateChart
     tabpane.maxPeriod.value =
-      if (SimulationModel.statistics == null) 0
-      else SimulationModel.statistics.value.byPeriod.keys.max
+      if (newStatistics == null) 0
+      else newStatistics.byPeriod.keys.max
+  }
+  SimulationModel.minStartDate <== AllocationModel.minStartDate
+  AllocationModel.allocationProperty.onChange {(_, _, newAllocation) =>
+    SimulationModel.allocationProperty.value =
+      if (AllocationModel.length > 0) new FixedAllocation(newAllocation.toMap)
+      else null
   }
 
   val settings = try {
@@ -437,37 +443,32 @@ object Main extends JFXApp {
       case None => println("Strategy ID not loaded")
     }
   }
-  val allocation =
+  val allocation: Option[List[(Instrument, Int)]] =
     (settings \ "allocation").headOption.collect { case node: xml.NodeSeq =>
       Storage.fromXML[List[(Instrument, Int)]](node) match {
-        case Some(allocation) => println("Settings file found, allocation loaded: " + allocation)
+        case Some(allocation) => println("Allocation loaded: " + allocation)
           SimulationModel.allocationProperty.value = new FixedAllocation((for ((i, w) <- allocation) yield (i, w.toDouble)).toMap)
           allocation
-        case None => println("Settings file found, but allocation not loaded"); List.empty
+        case None => println("Allocation not loaded"); List.empty
       }
     }
-  val dateRange =
+  val dateRange: Option[DateRange] =
     (settings \ "dateRange").headOption.collect { case node =>
       Storage.fromXML[DateRange](node) match {
         case Some(range) => println("Date Range loaded: " + range)
-          AllocationModel.dateRange.value = range
+          range
         case None => println("Date range not loaded")
+          DateRange.All
       }
     }
 
-  AllocationModel.init(allocation.getOrElse(List.empty))
+  AllocationModel.init(allocation.getOrElse(List.empty), dateRange.getOrElse(DateRange.All))
+
   val alllocationEditor = AllocationEditor.init(() => {
-    SimulationModel.allocationProperty.value =
-      if (AllocationModel.length > 0) new FixedAllocation(AllocationModel.get.toMap)
-      else null
-    SimulationModel.minStartDate.value =
-      if (AllocationModel.length > 0)
-        AllocationModel.availableInstruments map (_.startDate) reduce ((ym1, ym2) => if (ym1.isAfter(ym2)) ym1 else ym2)
-      else Instrument.startDate
     rootNode.children = chart
   })
 
-  def stopApp(): Unit = {
+  override def stopApp(): Unit = {
     val x = <settings>
       {Storage.toXML(AllocationModel.dateRange.value)}
       {if (AllocationModel.length > 0) Storage.toXML(AllocationModel.getWeights)}
