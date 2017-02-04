@@ -9,6 +9,7 @@ import java.time.YearMonth
 import java.time.temporal.ChronoUnit.MONTHS
 
 import investment.AllocationModel.DateRange
+import investment.Main.DisplayStats.{DisplayItem1, DisplayItem2}
 import investment.SimulationModel.InstalmentRuleID.SalaryPercentage
 import investment.SimulationModel.{InstalmentRuleID, StrategyID}
 import investment.Statistics.{AbsoluteDrawdown, BWML, Measure, RelativeDrawdown, Results}
@@ -50,9 +51,9 @@ object Main extends JFXApp {
         }))
 
       if (adjustForInflation.value) {
-        lineChart.getData.add(series("Investment (deflated)", allTimeStats.aggregateInvestment))
-        lineChart.getData.add(series("Inflation (deflated)", allTimeStats.inflation))
-        lineChart.getData.add(series("Assets Value (deflated)", allTimeStats.portfolioValues))
+        lineChart.getData.add(series("Investment", allTimeStats.aggregateInvestment))
+        lineChart.getData.add(series("Inflation", allTimeStats.inflation))
+        lineChart.getData.add(series("Assets Value", allTimeStats.portfolioValues))
       } else {
         lineChart.getData.add(series("Investment", allTimeStats.aggregateInvestment0))
         lineChart.getData.add(series("Inflation", allTimeStats.inflation0))
@@ -62,30 +63,43 @@ object Main extends JFXApp {
   }
 
   object DisplayStats {
-    class DisplayItem(val name: String, private val source: Statistics => String) {
+    abstract class DisplayItem(val name: String)
+    case class DisplayItem1(override val name: String, private val getValue: Statistics => String) extends DisplayItem(name) {
       private val wrapper = ReadOnlyStringWrapper("")
       val property: ReadOnlyStringProperty = wrapper.readOnlyProperty
       wrapper <== Bindings.createStringBinding(
-        () => if (SimulationModel.statistics.value != null) source(SimulationModel.statistics.value) else "N/A",
+        () => if (SimulationModel.statistics.value != null) getValue(SimulationModel.statistics.value) else "N/A",
+        SimulationModel.statistics)
+    }
+
+    case class DisplayItem2(override val name: String,
+                       private val getNominal: Statistics => String,
+                       private val getDeflated: Statistics => String) extends DisplayItem(name) {
+      private val nominalWrapper = ReadOnlyStringWrapper("")
+      val nominalValue: ReadOnlyStringProperty = nominalWrapper.readOnlyProperty
+      nominalWrapper <== Bindings.createStringBinding(
+        () => if (SimulationModel.statistics.value != null) getNominal(SimulationModel.statistics.value) else "N/A",
+        SimulationModel.statistics)
+      private val deflatedWrapper = ReadOnlyStringWrapper("")
+      val deflatedValue: ReadOnlyStringProperty = deflatedWrapper.readOnlyProperty
+      deflatedWrapper <== Bindings.createStringBinding(
+        () => if (SimulationModel.statistics.value != null) getDeflated(SimulationModel.statistics.value) else "N/A",
         SimulationModel.statistics)
     }
 
     val items: IndexedSeq[DisplayItem] = IndexedSeq(
-      new DisplayItem("Period", (stats) => stats.allTime.start + " - " + stats.allTime.start.plusMonths(stats.allTime.duration - 1) + " (" + stats.allTime.duration + " months)"),
-      new DisplayItem("Last instalment", (stats) => stats.allTime.instalments0.last._2.formatted("%.2f")),
-      new DisplayItem("Portfolio Value", (stats) => stats.allTime.portfolioValues0.last._2.formatted("%.2f")),
-      new DisplayItem("Total Investment", (stats) => stats.allTime.totalInvestment.formatted("%.2f")),
-      new DisplayItem("Total Income", (stats) => stats.allTime.totalIncome.formatted("%.2f")),
-      new DisplayItem("Capital Gain", (stats) => (stats.allTime.portfolioValues0.last._2 - stats.allTime.totalInvestment - stats.allTime.totalIncome).formatted("%.2f")),
-      new DisplayItem("Last 12M Income", (stats) => stats.allTime.last12MonthsIncome.formatted("%.2f")),
-      new DisplayItem("Return", (stats) => (stats.allTime.returnOnInvestment0 * 100).formatted("%.1f%%")),
-      new DisplayItem("Inflation-adjusted Return", (stats) => (stats.allTime.returnOnInvestment * 100).formatted("%.1f%%")),
-      new DisplayItem("Absolute drawdown", (stats) => stats.allTime.absoluteDrawdown0.toString),
-      new DisplayItem("Absolute drawdown (inflation adjusted)", (stats) => stats.allTime.absoluteDrawdown.toString),
-      new DisplayItem("Maximum drawdown", (stats) => stats.allTime.maximumDrawdown0.toString),
-      new DisplayItem("Maximum drawdown (inflation adjusted)", (stats) => stats.allTime.maximumDrawdown.toString),
-      new DisplayItem("Relative drawdown", (stats) => stats.allTime.relativeDrawdown0.toString),
-      new DisplayItem("Relative drawdown (inflation adjusted)", (stats) => stats.allTime.relativeDrawdown.toString)
+      DisplayItem1("Period", (stats) => stats.allTime.start + " - " + stats.allTime.start.plusMonths(stats.allTime.duration - 1) + " (" + stats.allTime.duration + " months)"),
+      DisplayItem1("Nominal Investment", (stats) => stats.allTime.totalInvestment0.formatted("%.2f")),
+      DisplayItem1("Investment Value", (stats) => stats.allTime.inflation.last._2.formatted("%.2f")),
+      DisplayItem1("Portfolio Value", (stats) => stats.allTime.portfolioValues0.last._2.formatted("%.2f")),
+      DisplayItem2("Return", (stats) => (stats.allTime.returnOnInvestment0 * 100).formatted("%.1f%%"), (stats) => (stats.allTime.returnOnInvestment * 100).formatted("%.1f%%")),
+      DisplayItem2("Absolute drawdown", (stats) => stats.allTime.absoluteDrawdown0.toString, (stats) => stats.allTime.absoluteDrawdown.toString),
+      DisplayItem2("Maximum drawdown", (stats) => stats.allTime.maximumDrawdown0.toString, (stats) => stats.allTime.maximumDrawdown.toString),
+      DisplayItem2("Relative drawdown", (stats) => stats.allTime.relativeDrawdown0.toString, (stats) => stats.allTime.relativeDrawdown.toString),
+      DisplayItem1("Total Income", (stats) => stats.allTime.totalIncome0.formatted("%.2f")),
+      DisplayItem1("Capital Gain", (stats) => (stats.allTime.portfolioValues0.last._2 - stats.allTime.totalInvestment0 - stats.allTime.totalIncome0).formatted("%.2f")),
+      DisplayItem1("Last instalment", (stats) => stats.allTime.instalments0.last._2.formatted("%.2f")),
+      DisplayItem1("Last 12M Income", (stats) => stats.allTime.last12MonthsIncome.formatted("%.2f"))
     )
 
     trait View[T] {
@@ -247,13 +261,29 @@ object Main extends JFXApp {
                   text = item.name + ":"
                   maxWidth = Double.MaxValue
                   alignment = javafx.geometry.Pos.CENTER_RIGHT
-                  style = "-fx-font-weight: bold; -fx-font-size: 120%"
+                  style = "-fx-font-weight: bold; -fx-font-size: 150%"
                 }, 0, i)
-                add(new Label {
-                  text <== item.property
-                  maxWidth = Double.MaxValue
-                  style = "-fx-font-size: 120%"
-                }, 1, i)
+                item match {
+                  case di1@DisplayItem1(_, _) =>
+                    add(new Label {
+                      text <== di1.property
+                      maxWidth = Double.MaxValue
+                      style = "-fx-font-size: 150%"
+                    }, 1, i)
+                  case di2@DisplayItem2(_, _, _) =>
+                    add(new Label {
+                      text <== di2.nominalValue
+                      maxWidth = Double.MaxValue
+                      style = "-fx-font-size: 150%"
+                      visible <== !adjustForInflation
+                    }, 1, i)
+                    add(new Label {
+                      text <== di2.deflatedValue
+                      maxWidth = Double.MaxValue
+                      style = "-fx-font-size: 150%"
+                      visible <== adjustForInflation
+                    }, 1, i)
+                }
               }
             }
         }
@@ -436,7 +466,7 @@ object Main extends JFXApp {
     rootNode.children = chart
   })
 
-  override def stopApp = {
+  def stopApp(): Unit = {
     val x = <settings>
       {Storage.toXML(AllocationModel.dateRange.value)}
       {if (AllocationModel.length > 0) Storage.toXML(AllocationModel.getWeights)}
