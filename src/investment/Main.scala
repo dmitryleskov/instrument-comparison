@@ -299,7 +299,7 @@ object Main extends JFXApp {
         content = new VBox {
           children = Seq(
             new GridPane {
-              padding = Insets(15)
+              padding = Insets(10)
               hgap = 8
               vgap = 8
               columnConstraints = Seq(
@@ -313,13 +313,14 @@ object Main extends JFXApp {
                 add(new Label {
                   text = measure.name
                   maxWidth = Double.MaxValue
-                  style = "-fx-font-weight: bold; -fx-font-size: 120%"
+                  style = "-fx-font-weight: bold; -fx-font-size: 150%"
                   alignment = javafx.geometry.Pos.CENTER
                 }, 0, i * 3, 4, 1)
                 for ((title, column) <- Seq("Best", "Worst", "Median", "Last") zipWithIndex) {
                   add(new Label {
                     text = title
                     maxWidth = Double.MaxValue
+                    style = "-fx-font-size: 120%"
                     alignment = javafx.geometry.Pos.CENTER
                     textAlignment = javafx.scene.text.TextAlignment.CENTER
                   }, column, i * 3 + 1)
@@ -328,7 +329,7 @@ object Main extends JFXApp {
                   add(new Label {
                     text <== property
                     maxWidth = Double.MaxValue
-                    style = "-fx-font-size: 120%"
+                    style = "-fx-font-size: 150%"
                     alignment = javafx.geometry.Pos.CENTER
                     textAlignment = javafx.scene.text.TextAlignment.CENTER
                     visible <== !adjustForInflation
@@ -338,7 +339,7 @@ object Main extends JFXApp {
                   add(new Label {
                     text <== property
                     maxWidth = Double.MaxValue
-                    style = "-fx-font-size: 120%"
+                    style = "-fx-font-size: 150%"
                     alignment = javafx.geometry.Pos.CENTER
                     textAlignment = javafx.scene.text.TextAlignment.CENTER
                     visible <== adjustForInflation
