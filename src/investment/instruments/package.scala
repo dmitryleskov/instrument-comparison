@@ -12,8 +12,9 @@ package object instruments {
   val cash: Seq[Cash] = Seq(Cash("RUB"), Cash("USD"), Cash("EUR"))
   val deposits: Seq[Deposit] = Seq(Deposit("RUB"), Deposit("USD"), Deposit("EUR"))
   val commodities: Seq[Commodity] = for (ticker <- Seq("XAUUSD", "XPTUSD", "XAGUSD", "UKOIL")) yield Commodity(ticker)
-  val stocks: Seq[Stock] = for (ticker <- Seq("ALRS", "GAZP", "LKOH", "NVTK", "GMKN", "MGNT", "MOEX", "MTSS",
-    "ROSN", "SBER", "SBERP", "SNGSP", "VTBR")
+  val stocks: Seq[Stock] = for (ticker <- Seq("AFKS", "AFLT", "AKRN", "ALRS", "CHMF", "GAZP", "GMKN",
+    "LKOH", "MAGN", "MGNT", "MOEX", "MTSS", "NLMK",
+    "NVTK", "PHOR", "ROSN", "RTKM", "RTKMP", "SBER", "SBERP", "SNGSP", "VTBR")
   ) yield Stock(ticker)
   val etfs = for (ticker <- Seq("FXMM", /*"FXRL",*/ "FXRB", "FXRU", "FXGD")) yield Stock(ticker)
   val all: Seq[Instrument] = cash ++ deposits ++ commodities ++ stocks ++ etfs :+ Inflation
