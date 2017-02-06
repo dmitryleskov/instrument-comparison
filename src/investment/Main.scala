@@ -157,7 +157,7 @@ object Main extends JFXApp {
         bindTo.value.toString, { change => if (change.text.matches("[0-9]*")) change else null }) {}
       // Only update the underlying property when losing focus (this also avoids the infinite loop)
       // TODO: Also update when the users pauses typing for, say, 0.5s
-      focused.onChange { (_, _, newVal) => if (!newVal) bindTo.value = text.value.toInt }
+      focused.onChange { (_, _, newVal) => if (!newVal) bindTo.value = ("0" + text.value).toInt }
       bindTo.onChange { (_, _, newVal) => text = newVal.toString }
     }
 
